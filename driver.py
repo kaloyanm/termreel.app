@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""
+driver.py — reads a scenario YAML file, starts a Docker container, and
+"types" a sequence of terminal commands into it with human-like timing
+while asciinema records the whole session to a .cast file.
+
+Pipeline:
+    scenario.yaml --> driver.py --> session.cast --> (render.sh) --> mp4/gif
+
+Requirements:
+    pip install pexpect pyyaml
+    asciinema and docker must be installed and on PATH.
+
+Usage:
+    python3 driver.py scenario.example.yaml --out session.cast
+"""
+
+import argparse
+import random
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pexpect
+import yaml
+
+PROMPT_SETTLE = 0.4  # brief pause after spawning, before we start typing
+
+
+def load_scenario(path: str) -> dict:
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def start_container(cfg: dict) -> str:
+    """Start a detached container we can exec into. Returns container name."""
+    docker_cfg = cfg["docker"]
+    name = docker_cfg["container_name"]
+
+    # Clean up any leftover container from a previous run.
+    subprocess.run(["docker", "rm", "-f", name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    mount_host = str(Path(docker_cfg["mount_host_path"]).resolve())
+    Path(mount_host).mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        "docker", "run", "-d",
+        "--name", name,
+        "-v", f"{mount_host}:{docker_cfg['mount_container_path']}",
+        "-w", docker_cfg.get("workdir", docker_cfg["mount_container_path"]),
+        docker_cfg["image"],
+        "sleep", "infinity",
+    ]
+    subprocess.run(cmd, check=True)
+    return name
+
+
+def stop_container(name: str):
+    subprocess.run(["docker", "rm", "-f", name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def human_type(child: pexpect.spawn, text: str, base_cps: float, jitter_pct: float):
+    """Send text one character at a time with randomized delay, like a human typing."""
+    base_delay = 1.0 / base_cps
+    for ch in text:
+        child.send(ch)
+        jitter = base_delay * jitter_pct
+        delay = max(0.01, random.uniform(base_delay - jitter, base_delay + jitter))
+        # Occasionally simulate a slightly longer pause (thinking / punctuation).
+        if ch in ",.(){}[]" and random.random() < 0.3:
+            delay += base_delay * 2
+        time.sleep(delay)
+
+
+def run_command(child: pexpect.spawn, text: str, timing: dict):
+    human_type(child, text, timing["base_cps"], timing["jitter_pct"])
+    child.send("\r")
+    time.sleep(timing.get("settle", 0.3))
+
+
+def do_step(child: pexpect.spawn, step: dict, timing: dict):
+    step_type = step["type"]
+
+    if step_type == "command":
+        run_command(child, step["text"], timing)
+
+    elif step_type == "comment":
+        run_command(child, f"# {step['text']}", timing)
+
+    elif step_type == "write_file":
+        content = Path(step["content_file"]).read_text()
+        heredoc_cmd = f"cat > {step['path']} << 'EOF'\n{content}\nEOF"
+        # Type the opening line visibly, then paste the body at once
+        # (typing a whole file char-by-char is slow and adds nothing visually).
+        opening = f"cat > {step['path']} << 'EOF'"
+        human_type(child, opening, timing["base_cps"], timing["jitter_pct"])
+        child.send("\r")
+        time.sleep(0.2)
+        child.send(content + "\r")
+        child.send("EOF\r")
+        time.sleep(timing.get("settle", 0.3))
+
+    else:
+        raise ValueError(f"Unknown step type: {step_type}")
+
+    time.sleep(step.get("pause_after", timing.get("default_pause_after", 1.0)))
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("scenario", help="Path to scenario YAML file")
+    parser.add_argument("--out", default="session.cast", help="Output asciinema .cast path")
+    parser.add_argument("--cols", type=int, default=120)
+    parser.add_argument("--rows", type=int, default=30)
+    args = parser.parse_args()
+
+    cfg = load_scenario(args.scenario)
+    timing = cfg.get("typing", {"base_cps": 14, "jitter_pct": 0.3})
+
+    print(f"[*] Starting container for: {cfg.get('title', args.scenario)}")
+    container_name = start_container(cfg)
+
+    try:
+        # asciinema records everything that happens on this pty, including
+        # the docker exec session we spawn inside it.
+        rec_cmd = (
+            f"asciinema rec --overwrite "
+            f"--command \"docker exec -it {container_name} bash\" "
+            f"{args.out}"
+        )
+        print(f"[*] Recording to {args.out}")
+        child = pexpect.spawn(
+            "/bin/bash", ["-c", rec_cmd],
+            dimensions=(args.rows, args.cols),
+            encoding="utf-8",
+            timeout=None,
+        )
+        time.sleep(PROMPT_SETTLE + 1.0)  # let container shell settle
+
+        for step in cfg["steps"]:
+            do_step(child, step, timing)
+
+        # Exit the inner shell, which ends the asciinema recording.
+        child.send("exit\r")
+        child.expect(pexpect.EOF, timeout=10)
+
+    finally:
+        print(f"[*] Stopping container {container_name}")
+        stop_container(container_name)
+
+    print(f"[+] Done. Recording saved to {args.out}")
+
+
+if __name__ == "__main__":
+    main()
