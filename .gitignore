@@ -21,3 +21,6 @@ frontend/.env.local
 # RQ / job artefacts
 *.rdb
 
+# Claude Code local settings (may contain secrets, e.g. env/API keys)
+.claude/settings.local.json
+
