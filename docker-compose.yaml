@@ -1,0 +1,81 @@
+# Coolify deployment: import this repo as a "Docker Compose" resource.
+# After first deploy, set a domain on the `web` service in the Coolify UI
+# (Traefik picks it up automatically via Coolify's compose integration).
+#
+# Topology:
+#   web    - FastAPI + built frontend, serves the app and /api and /media
+#   worker - RQ worker; runs driver.py, which needs a Docker daemon to spin
+#            up scenario containers. Points at the `dind` sidecar rather than
+#            the host daemon so scenario containers stay sandboxed away from
+#            this server's real Docker socket (which also runs Coolify).
+#   redis  - job queue, internal only
+#   dind   - isolated Docker-in-Docker daemon, internal only
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  dind:
+    image: docker:27-dind
+    restart: unless-stopped
+    privileged: true
+    environment:
+      # No TLS: only reachable from other services on this compose project's
+      # internal network, never published to the host.
+      - DOCKER_TLS_CERTDIR=
+    volumes:
+      - dind-storage:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    volumes:
+      - termreel-data:/app/backend/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "app.worker"]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DOCKER_HOST=tcp://dind:2375
+    volumes:
+      - termreel-data:/app/backend/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      dind:
+        condition: service_healthy
+
+volumes:
+  termreel-data:
+  dind-storage:
