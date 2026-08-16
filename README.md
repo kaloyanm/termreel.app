@@ -1,6 +1,6 @@
-# yt-terminal-recorder
+# yt-terminal-recorder / termreel
 
-A prototype pipeline for generating "automated coding session" YouTube videos:
+A pipeline for generating "automated coding session" YouTube videos:
 a scenario file describes what happens, a script types it into a real Docker
 container, and the session is recorded and rendered to video.
 
@@ -11,6 +11,53 @@ scenario.yaml --> driver.py --> session.cast --> render.sh --> mp4
                      +-- drives it via a pty (pexpect)
                      +-- asciinema records the whole terminal session
 ```
+
+`driver.py` and `render.sh` at the repo root are the original CLI tools and
+still work standalone exactly as documented below. `backend/` and
+`frontend/` wrap that same pipeline in a web app ("termreel") so scenarios
+can be authored in a browser and organized into projects/playlists instead
+of hand-edited YAML files.
+
+## Web app (termreel)
+
+```
+backend/   FastAPI + SQLite (SQLModel) + RQ — projects, playlists, scenario
+           CRUD, and a render queue that shells out to driver.py/render.sh
+           unchanged.
+frontend/  Bun + React + TypeScript + shadcn/ui — landing page, project/
+           playlist browser, and the interactive scenario editor.
+```
+
+Requires everything the CLI pipeline requires (docker, asciinema, agg,
+ffmpeg) plus `redis-server`, `uv`, and `bun`.
+
+```bash
+./dev.sh
+```
+
+This starts redis (if not already running), the API on
+`http://127.0.0.1:8000`, the RQ worker, and the frontend on
+`http://127.0.0.1:5173`. Open the frontend URL, create a project, a
+playlist, and a scenario, then hit **Render** — it runs the real driver.py
+→ render.sh pipeline in the background and the UI polls until the MP4/GIF
+are ready to download.
+
+Run the pieces individually:
+
+```bash
+redis-server --daemonize yes
+cd backend && uv sync && uv run uvicorn app.main:app --reload   # API
+cd backend && uv run python -m app.worker                        # render worker
+cd frontend && bun install && bun run dev                        # UI
+cd backend && uv run pytest                                      # API tests
+```
+
+Scenarios created in the editor are stored in SQLite in the exact shape of
+`scenario.example.yaml` (see `GET /api/scenarios/{id}/yaml`) and are handed
+to the unmodified root `driver.py` at render time — the editor is a UI over
+the same custom format, not a replacement for it.
+
+## CLI pipeline (original tool)
 
 ## Why this approach
 

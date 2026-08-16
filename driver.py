@@ -91,8 +91,12 @@ def do_step(child: pexpect.spawn, step: dict, timing: dict):
         run_command(child, f"# {step['text']}", timing)
 
     elif step_type == "write_file":
-        content = Path(step["content_file"]).read_text()
-        heredoc_cmd = f"cat > {step['path']} << 'EOF'\n{content}\nEOF"
+        # Interactive bash reads heredoc bodies through readline, so a raw
+        # tab byte is treated as a completion request (not literal input) -
+        # with two similarly-named files in the dir this silently splices a
+        # completed filename into the file instead of the tab. Expand tabs
+        # to spaces before sending so no raw tab byte ever hits the pty.
+        content = Path(step["content_file"]).read_text().expandtabs(4)
         # Type the opening line visibly, then paste the body at once
         # (typing a whole file char-by-char is slow and adds nothing visually).
         opening = f"cat > {step['path']} << 'EOF'"
@@ -136,6 +140,7 @@ def main():
             "/bin/bash", ["-c", rec_cmd],
             dimensions=(args.rows, args.cols),
             encoding="utf-8",
+            codec_errors="replace",
             timeout=None,
         )
         time.sleep(PROMPT_SETTLE + 1.0)  # let container shell settle

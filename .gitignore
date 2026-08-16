@@ -8,3 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Backend runtime data
+backend/data/
+backend/.venv
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# RQ / job artefacts
+*.rdb
+
