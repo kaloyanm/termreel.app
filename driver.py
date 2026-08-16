@@ -19,6 +19,7 @@ import argparse
 import random
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 
@@ -81,14 +82,22 @@ def run_command(child: pexpect.spawn, text: str, timing: dict):
     time.sleep(timing.get("settle", 0.3))
 
 
-def do_step(child: pexpect.spawn, step: dict, timing: dict):
+def do_step(child: pexpect.spawn, step: dict, timing: dict, cols: int):
     step_type = step["type"]
 
     if step_type == "command":
         run_command(child, step["text"], timing)
 
     elif step_type == "comment":
-        run_command(child, f"# {step['text']}", timing)
+        # A line typed past the pty's column width relies on the terminal
+        # and bash's readline agreeing on where it wraps, which in practice
+        # (through asciinema -> docker exec's own pty layering) drifts and
+        # makes readline redraw over the same line instead of moving down.
+        # Sidestep that entirely by wrapping narration into several short
+        # "# ..." lines ourselves, each its own real Enter-terminated line.
+        wrap_width = max(20, cols - 4)
+        for line in textwrap.wrap(step["text"], width=wrap_width) or [""]:
+            run_command(child, f"# {line}", timing)
 
     elif step_type == "write_file":
         # Interactive bash reads heredoc bodies through readline, so a raw
@@ -129,10 +138,19 @@ def main():
 
     try:
         # asciinema records everything that happens on this pty, including
-        # the docker exec session we spawn inside it.
+        # the docker exec session we spawn inside it. --window-size pins the
+        # recorded pty to the exact size we tell readline to wrap against
+        # (see do_step's comment-wrapping). Most base images (e.g. golang's)
+        # have no locale configured (LC_CTYPE=POSIX) - without a UTF-8
+        # locale, bash's readline miscomputes the on-screen column width of
+        # multi-byte characters, so any non-ASCII comment that wraps a line
+        # corrupts the display (redraws overwrite the previous row instead
+        # of moving down). Forcing LC_ALL fixes readline's column math;
+        # C.UTF-8 is a synthetic glibc locale needing no locale-gen.
         rec_cmd = (
             f"asciinema rec --overwrite "
-            f"--command \"docker exec -it {container_name} bash\" "
+            f"--window-size {args.cols}x{args.rows} "
+            f"--command \"docker exec -e LC_ALL=C.UTF-8 -it {container_name} bash\" "
             f"{args.out}"
         )
         print(f"[*] Recording to {args.out}")
@@ -146,7 +164,7 @@ def main():
         time.sleep(PROMPT_SETTLE + 1.0)  # let container shell settle
 
         for step in cfg["steps"]:
-            do_step(child, step, timing)
+            do_step(child, step, timing, args.cols)
 
         # Exit the inner shell, which ends the asciinema recording.
         child.send("exit\r")
