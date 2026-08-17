@@ -13,10 +13,15 @@ RUN bun run build
 FROM python:3.12-slim AS runtime
 
 # docker-cli: client only — talks to the dind sidecar over DOCKER_HOST, never a local daemon.
-# ffmpeg/curl: render.sh's gif->mp4 step, and fetching the agg binary below.
+# curl: render.sh's fetch of the agg binary below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      docker-cli ffmpeg curl ca-certificates \
+      docker-cli curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Static ffmpeg binary for render.sh's gif->mp4 step, instead of the distro
+# package — Debian's ffmpeg hard-depends on the full desktop/multimedia stack
+# (X11, PulseAudio, Vulkan/Mesa, ~200 packages) even with --no-install-recommends.
+COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/ffmpeg
 
 # agg (asciinema cast -> gif renderer) and asciinema itself: driver.py needs
 # the v3 asciinema CLI (--window-size support), which isn't on PyPI — that
@@ -57,6 +62,7 @@ RUN cd backend && uv sync --frozen --no-dev
 COPY driver.py render.sh scenario.example.yaml ./
 COPY demo-repo/ ./demo-repo/
 COPY backend/app/ ./backend/app/
+COPY backend/__appsignal__.py ./backend/
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 RUN chmod +x render.sh
