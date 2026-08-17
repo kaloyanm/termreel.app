@@ -12,6 +12,8 @@ dependencies = [
     "pyyaml>=6.0",
     "pydantic>=2.9",
     "python-multipart>=0.0.12",
+    "appsignal>=1.6.5",
+    "opentelemetry-instrumentation-fastapi>=0.65b0",
 ]
 
 [dependency-groups]

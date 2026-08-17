@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.config import ALLOWED_ORIGINS, FRONTEND_DIST_DIR, MEDIA_DIR
 from app.db import init_db
@@ -15,6 +16,11 @@ async def lifespan(app: FastAPI):
     init_db()
     yield
 
+
+# Add these statements to import and initialise AppSignal
+import appsignal
+
+appsignal.start()
 
 app = FastAPI(title="Video Tutorial Creator API", lifespan=lifespan)
 
@@ -38,11 +44,15 @@ def health():
     return {"status": "ok"}
 
 
+FastAPIInstrumentor().instrument_app(app)
+
 # Serves the built frontend (bun run build) when it's present, e.g. in the
 # production image. In local dev the Vite dev server handles the frontend
 # instead, so FRONTEND_DIST_DIR won't exist and this is skipped.
 if FRONTEND_DIST_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="assets")
+    app.mount(
+        "/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="assets"
+    )
 
     @app.get("/{full_path:path}")
     def spa(full_path: str):
