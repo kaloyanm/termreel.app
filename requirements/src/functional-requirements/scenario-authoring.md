@@ -60,3 +60,62 @@ exact shape of `scenario.example.yaml`, so it round-trips to a YAML file
     exactly (`ScenarioEditorPage`) — a discrepancy between the two is a
     defect, not an acceptable divergence.
 - **Dependencies:** [FR-CLI-001](./cli-pipeline.md#fr-cli-001--author-a-scenario-file).
+
+## FR-EDIT-005 — write_vim step schema
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Should
+- **Statement:** A fourth step type, `write_vim`, is authorable with the
+  same `path` + (`content` or `content_file`) shape as `write_file`, plus
+  two step-local booleans controlling how the recording behaves.
+- **Acceptance criteria:**
+  - `type: write_vim` steps are validated with the same required-field
+    rule as `write_file` ([FR-EDIT-001](#fr-edit-001--step-schema-validation)):
+    `path` required, and either `content` or `content_file` required.
+  - Two additional optional booleans, both defaulting `false`:
+    `simulate_typos` (drives [FR-CLI-011](./cli-pipeline.md#fr-cli-011--typo-simulation-for-write_vim));
+    `force_blank` (forces [FR-CLI-009](./cli-pipeline.md#fr-cli-009--write_vim-step-blank-mode)
+    even when a file already exists at `path`, instead of the diff-mode
+    default in [FR-CLI-010](./cli-pipeline.md#fr-cli-010--write_vim-step-diffliveedit-mode)).
+- **Dependencies:** [FR-CLI-009](./cli-pipeline.md#fr-cli-009--write_vim-step-blank-mode)–[FR-CLI-011](./cli-pipeline.md#fr-cli-011--typo-simulation-for-write_vim).
+
+## FR-EDIT-006 — Upload a file to seed step content
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Could
+- **Statement:** Authoring a `write_file` or `write_vim` step, an author can
+  populate the step's `content` from a local file instead of typing/pasting
+  it into the textarea.
+- **Acceptance criteria:**
+  - An "Upload file" control (client-side `FileReader.readAsText`, no
+    backend involvement) sets `content` to the uploaded file's text; if the
+    step's `path` is still empty, it's filled from the uploaded file's name.
+  - Available for both `write_file` and `write_vim` steps, since they share
+    the same path/content field block in the step editor.
+
+## FR-EDIT-007 — Typing-time guardrail on write_vim content
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Should
+- **Statement:** Saving a scenario is rejected if a `write_vim` step's
+  content would take an unreasonably long time to type at the scenario's
+  configured typing speed, so an author can't accidentally queue a
+  multi-minute render without a clear signal at save time.
+- **Acceptance criteria:**
+  - Estimated typing time is `len(content) / typing.base_cps` seconds;
+    scenario create/update is rejected with `422` if any `write_vim` step's
+    estimate exceeds 60s, naming the offending step and its estimate.
+  - The check uses `content` length as a valid upper bound for both
+    write_vim modes ([FR-CLI-009](./cli-pipeline.md#fr-cli-009--write_vim-step-blank-mode)/[FR-CLI-010](./cli-pipeline.md#fr-cli-010--write_vim-step-diffliveedit-mode)) —
+    diff mode's deletions are instant vim commands, not human-typed, and its
+    insertions are always a subset of `content`.
+  - Enforced where the *effective* `steps`/`typing` are known (after
+    merging a partial `ScenarioUpdate` payload onto the existing DB row),
+    not as a bare per-step Pydantic validator, since a step alone has no
+    access to the sibling `typing` config and an update payload may omit
+    `typing` entirely.
+  - A step authored with only `content_file` (no inline `content`) has
+    nothing to measure at save time and is skipped by this check.

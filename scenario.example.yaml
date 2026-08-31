@@ -45,6 +45,21 @@ steps:
     content_file: "./demo-repo/worker_fixed.go"
     pause_after: 2
 
+  # There is also a `write_vim` step type: instead of a heredoc, it opens
+  # `vim` in the recorded terminal and types the target content into it
+  # (character by character in blank mode, or as a live diff-driven edit
+  # against whatever's already at `path` in the container) - see
+  # requirements/src/functional-requirements/cli-pipeline.md (FR-CLI-009..
+  # 011) for the full behavior. Requires `vim` to be installed in the
+  # scenario's Docker image. Example (not used by this scenario):
+  #
+  # - type: write_vim
+  #   path: "worker.go"
+  #   content_file: "./demo-repo/worker_fixed.go"
+  #   simulate_typos: false   # optional: simulate occasional typo+backspace
+  #   force_blank: false      # optional: always wipe+retype instead of
+  #                            # diff-editing an existing file at `path`
+
   - type: command
     text: "go run worker.go"
     pause_after: 3

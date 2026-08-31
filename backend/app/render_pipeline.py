@@ -77,7 +77,7 @@ def _materialize_scenario_yaml(
     materialized_steps = []
     for i, step in enumerate(steps):
         step = dict(step)
-        if step.get("type") == "write_file" and step.get("content") is not None:
+        if step.get("type") in ("write_file", "write_vim") and step.get("content") is not None:
             content_path = artifacts_dir / f"step_{i}_{Path(step['path']).name}"
             content_path.write_text(step["content"])
             step["content_file"] = str(content_path)

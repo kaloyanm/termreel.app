@@ -1,8 +1,10 @@
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import { ArrowDown, ArrowUp, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -16,6 +18,7 @@ const typeLabels: Record<StepType, string> = {
   command: "Command",
   comment: "Comment",
   write_file: "Write file",
+  write_vim: "Write file (vim)",
 };
 
 export function StepEditor({
@@ -33,6 +36,8 @@ export function StepEditor({
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="rounded-lg border p-4 space-y-3 bg-card">
       <div className="flex items-center gap-2">
@@ -86,7 +91,7 @@ export function StepEditor({
         </div>
       )}
 
-      {step.type === "write_file" && (
+      {(step.type === "write_file" || step.type === "write_vim") && (
         <div className="grid grid-cols-1 gap-3">
           <div className="space-y-1.5">
             <Label>Destination path (inside container)</Label>
@@ -98,7 +103,37 @@ export function StepEditor({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>File content</Label>
+            <div className="flex items-center justify-between">
+              <Label>File content</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload /> Upload file
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    onChange({
+                      ...step,
+                      content: String(reader.result ?? ""),
+                      path: step.path || file.name,
+                    });
+                  };
+                  reader.readAsText(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
             <Textarea
               value={step.content ?? ""}
               onChange={(e) => onChange({ ...step, content: e.target.value })}
@@ -107,6 +142,29 @@ export function StepEditor({
               placeholder="package main…"
             />
           </div>
+
+          {step.type === "write_vim" && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={step.simulate_typos ?? false}
+                  onCheckedChange={(checked) => onChange({ ...step, simulate_typos: checked })}
+                />
+                Simulate typos
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={step.force_blank ?? false}
+                  onCheckedChange={(checked) => onChange({ ...step, force_blank: checked })}
+                />
+                Always start blank (ignore existing file)
+              </label>
+              <p className="text-xs text-muted-foreground pl-6">
+                By default, write_vim auto-detects an existing file at this path in the
+                container and edits it in place instead of overwriting it from scratch.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

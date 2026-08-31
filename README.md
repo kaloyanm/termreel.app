@@ -90,8 +90,11 @@ See `scenario.example.yaml`. Key fields:
   the episode uses (mounted into the container so it's inspectable/editable).
 - `typing.base_cps` / `jitter_pct`: how "human" the typing looks.
 - `steps`: the ordered list of things that happen — `command`, `comment`
-  (a typed `# ...` line for narration-in-terminal), or `write_file`
-  (types a heredoc header, then pastes a file's contents in).
+  (a typed `# ...` line for narration-in-terminal), `write_file`
+  (types a heredoc header, then pastes a file's contents in), or `write_vim`
+  (opens `vim` and types the content into it, character by character —
+  either into a blank buffer, or as a live diff-driven edit if the target
+  file already exists in the container; requires `vim` in the image).
 
 ## 2. Record
 
@@ -120,9 +123,9 @@ layer, this composits easily.
 ## Extending the scenario format
 
 The `do_step()` function in `driver.py` is a small dispatcher — adding a
-new step type (e.g. `run_editor` to drive `vim`/`nano` on screen, or
-`split_pane` for a tmux layout) just means adding a new branch there and
-a corresponding block in the YAML schema.
+new step type (e.g. `split_pane` for a tmux layout) just means adding a new
+branch there and a corresponding block in the YAML schema. `write_vim`
+(drives `vim` on screen) is one such step type already built this way.
 
 ## Known rough edges (this is a sketch, not production)
 
@@ -131,7 +134,10 @@ a corresponding block in the YAML schema.
   "skip/abort" path.
 - `write_file` pastes content in one shot rather than typing it — typing
   a whole file character-by-character is slow and rarely looks better on
-  screen; consider a fast "paste" animation instead if you want more polish.
+  screen; use `write_vim` instead if you specifically want a live-typing
+  look for a short file or a small edit (it's slow for large content, by
+  design — the pipeline rejects a `write_vim` step whose content would take
+  more than ~60s to type at the configured `base_cps`).
 - Terminal size, font, and color scheme are only controlled at render time
   (via `agg`/theme), not at record time — good for flexibility, but means
   what you see in a live `asciinema play` differs from the final render.

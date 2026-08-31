@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-08-31 — write_vim step type (planned, then implemented same day)
+
+- Prompted by: wanting a step type that visibly types a file into `vim` in
+  the recorded terminal, character by character, so it reads as someone
+  live-programming rather than a heredoc paste.
+- Captured via a `grill-me` design session (see the `Planned` marker
+  convention in [Status of this baseline](./requirement-taxonomy.md#status-of-this-baseline)).
+- Added [FR-CLI-009](./functional-requirements/cli-pipeline.md#fr-cli-009--write_vim-step-blank-mode)
+  (blank-buffer type-out, vim's own autoindent left on, best-effort content
+  match — no correction pass), [FR-CLI-010](./functional-requirements/cli-pipeline.md#fr-cli-010--write_vim-step-diffliveedit-mode)
+  (auto-detected diff/live-edit mode against the container's current file,
+  line-level + character-level `difflib` diff driving vim motions), and
+  [FR-CLI-011](./functional-requirements/cli-pipeline.md#fr-cli-011--typo-simulation-for-write_vim)
+  (optional per-step typo simulation).
+- Added [FR-EDIT-005](./functional-requirements/scenario-authoring.md#fr-edit-005--write_vim-step-schema)
+  (the `write_vim` step's schema: `simulate_typos`/`force_blank`),
+  [FR-EDIT-006](./functional-requirements/scenario-authoring.md#fr-edit-006--upload-a-file-to-seed-step-content)
+  (an "Upload file" control seeding `content` for `write_file`/`write_vim`
+  steps), and [FR-EDIT-007](./functional-requirements/scenario-authoring.md#fr-edit-007--typing-time-guardrail-on-write_vim-content)
+  (save-time rejection of a `write_vim` step whose content would take too
+  long to type).
+- Verified: `backend/tests/test_api.py` (all 8, including 4 new write_vim
+  tests) and `frontend`'s `tsc -b && vite build`/`oxlint` all pass. The
+  vim-motion diff logic (`_write_vim_diff`/`_edit_line`) was sanity-checked
+  offline against fake input (no real pty), confirming it runs without
+  crashing and produces plausible keystroke sequences for both an
+  added-lines edit and a same-line-count word-level edit — **not** verified
+  against a real `docker`+`vim` recording end-to-end, consistent with the
+  documented test-coverage gap for the rest of `FR-CLI-*`
+  (see [Traceability](./traceability.md)).
+
+### Decisions made during the design session (interview, one branch at a time)
+
+- Indentation: vim's own autoindent stays on (visual authenticity over
+  guaranteed byte-exact output) — explicitly rejected the alternative of
+  disabling autoindent for exact reproduction, and separately rejected
+  adding a silent post-type correction pass to force exactness.
+- Typo simulation: a per-step toggle (`simulate_typos`), not a fixed global
+  behavior for all typing.
+- Existing-file handling: write_vim supports true live-editing of existing
+  content (diff-driven), not just always-blank writes like `write_file` —
+  with `force_blank` as an explicit opt-out.
+- Before-state source for the diff: read live from the container via
+  `docker exec ... cat`, not an explicit `base_content` field the author
+  would have to maintain — accepted the larger structural change (threading
+  `container_name` into `driver.py`'s `do_step`) for the ergonomic win.
+- Diff granularity: character-level within a changed line (not word/token-
+  level, not line-only) — the most surgical, most complex of the offered
+  options.
+- Upload control: available on both `write_file` and `write_vim`, not
+  scoped narrowly to `write_vim` alone, since they share the same UI field
+  block.
+- Large content: got a real guardrail (not left as a documented limitation)
+  — reject at save time (422) rather than silently degrading render time by
+  auto-speeding-up overflow content.
+- Step name: `write_vim`, confirmed.
+
 ## 2026-08-31 — Detailed render logs (planned, then implemented same day)
 
 - Prompted by: clicking Render and getting only a single-line `job.error` on

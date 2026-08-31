@@ -29,7 +29,7 @@ export interface TypingConfig {
   default_pause_after: number;
 }
 
-export type StepType = "command" | "comment" | "write_file";
+export type StepType = "command" | "comment" | "write_file" | "write_vim";
 
 export interface ScenarioStep {
   type: StepType;
@@ -37,6 +37,9 @@ export interface ScenarioStep {
   path?: string;
   content?: string;
   pause_after?: number;
+  // write_vim only
+  simulate_typos?: boolean;
+  force_blank?: boolean;
 }
 
 export interface RenderJob {

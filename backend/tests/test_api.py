@@ -101,6 +101,101 @@ def test_scenario_validation_rejects_bad_step(client):
     assert r.status_code == 422
 
 
+def test_write_vim_step_round_trip(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "vim demo",
+            "docker": {"image": "x", "container_name": "x"},
+            "typing": {"base_cps": 14},
+            "steps": [
+                {
+                    "type": "write_vim",
+                    "path": "worker.go",
+                    "content": "package main\n",
+                    "simulate_typos": True,
+                    "force_blank": True,
+                }
+            ],
+        },
+    )
+    assert r.status_code == 201, r.text
+    scenario = r.json()
+    step = scenario["steps"][0]
+    assert step["type"] == "write_vim"
+    assert step["simulate_typos"] is True
+    assert step["force_blank"] is True
+
+
+def test_write_vim_requires_path_or_content(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "bad vim step",
+            "docker": {"image": "x", "container_name": "x"},
+            "steps": [{"type": "write_vim", "path": "worker.go"}],  # missing content
+        },
+    )
+    assert r.status_code == 422
+
+
+def test_write_vim_typing_time_guardrail_rejects_oversized_content(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    # 100 chars at 1 cps would take 100s, well past the 60s limit.
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "too slow",
+            "docker": {"image": "x", "container_name": "x"},
+            "typing": {"base_cps": 1},
+            "steps": [{"type": "write_vim", "path": "f.txt", "content": "x" * 100}],
+        },
+    )
+    assert r.status_code == 422
+    assert "write_vim" in r.text
+
+
+def test_write_vim_typing_time_guardrail_allows_small_content(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "fine",
+            "docker": {"image": "x", "container_name": "x"},
+            "typing": {"base_cps": 14},
+            "steps": [{"type": "write_vim", "path": "f.txt", "content": "short"}],
+        },
+    )
+    assert r.status_code == 201, r.text
+    scenario = r.json()
+
+    # Updating steps alone (no typing in the payload) must still use the
+    # scenario's existing typing.base_cps to evaluate the guardrail.
+    r = client.put(
+        f"/api/scenarios/{scenario['id']}",
+        json={"steps": [{"type": "write_vim", "path": "f.txt", "content": "x" * 5000}]},
+    )
+    assert r.status_code == 422
+
+
 def test_render_requires_steps(client):
     r = client.post("/api/projects", json={"name": "P"})
     project = r.json()

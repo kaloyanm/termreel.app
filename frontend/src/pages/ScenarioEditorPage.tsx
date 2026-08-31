@@ -15,13 +15,17 @@ import { StepEditor } from "@/components/app/StepEditor";
 import { JobLogDialog } from "@/components/app/JobLogDialog";
 import type { DockerConfig, ScenarioStep, TypingConfig } from "@/types";
 
-const emptyStep = (type: ScenarioStep["type"] = "command"): ScenarioStep => ({
-  type,
-  text: type === "write_file" ? undefined : "",
-  path: type === "write_file" ? "" : undefined,
-  content: type === "write_file" ? "" : undefined,
-  pause_after: 1.5,
-});
+const emptyStep = (type: ScenarioStep["type"] = "command"): ScenarioStep => {
+  const isWrite = type === "write_file" || type === "write_vim";
+  return {
+    type,
+    text: isWrite ? undefined : "",
+    path: isWrite ? "" : undefined,
+    content: isWrite ? "" : undefined,
+    pause_after: 1.5,
+    ...(type === "write_vim" ? { simulate_typos: false, force_blank: false } : {}),
+  };
+};
 
 export default function ScenarioEditorPage() {
   const { scenarioId } = useParams();
@@ -173,6 +177,9 @@ export default function ScenarioEditorPage() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => setSteps([...steps, emptyStep("write_file")])}>
               <Plus /> Write file
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSteps([...steps, emptyStep("write_vim")])}>
+              <Plus /> Write file (vim)
             </Button>
           </div>
         </TabsContent>

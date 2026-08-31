@@ -105,3 +105,90 @@ also, transitively, a dependency of [FR-REND-*](./render-pipeline.md).
   - Adding a step type means adding one branch to `do_step()` in
     `driver.py` and a corresponding block to the YAML schema — no other
     coupling exists between step types.
+
+## FR-CLI-009 — write_vim step: blank mode
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Should
+- **Statement:** When no file currently exists at a `write_vim` step's
+  `path` (or `force_blank: true` is set), the step opens `vim` in the
+  recorded terminal and types the target `content` into it character by
+  character in insert mode, so the recording looks like someone live-coding
+  the file rather than pasting a heredoc.
+- **Acceptance criteria:**
+  - `vim` is opened with `-n -i NONE <path>` (no swapfile, no viminfo) —
+    no other flags; vim's bundled `defaults.vim` (`syntax on`,
+    `filetype plugin indent on`) is left active so indentation is driven
+    live by vim itself, same as a real vim setup.
+  - This is a **deliberate, accepted trade-off**: vim's guessed indent can
+    drift from the source's actual indentation, so the file written to disk
+    is not guaranteed byte-identical to `content` — no correction pass is
+    applied. write_vim is for the visual, not for guaranteeing exact output.
+  - Whatever vim opens with is cleared (`:%d`) before typing; each line of
+    `content` has its leading whitespace stripped before being typed (vim's
+    own autoindent supplies it — typing it too would double it up).
+  - The buffer is saved and closed with `:wq` after typing completes.
+- **Dependencies:** [FR-CLI-003](#fr-cli-003--record-with-human-like-typing)
+  (typing primitive reused), [FR-EDIT-005](./scenario-authoring.md#fr-edit-005--write_vim-step-schema).
+
+## FR-CLI-010 — write_vim step: diff/live-edit mode
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Should
+- **Statement:** When a file already exists at a `write_vim` step's `path`
+  (and `force_blank` is not set), the step reads that file's current
+  content from the running container and edits it in place with vim
+  motions — navigating to, deleting, and inserting only what actually
+  changed — instead of wiping and retyping the whole file.
+- **Acceptance criteria:**
+  - The "before" content is read via `docker exec <container> cat <path>`,
+    run as a plain subprocess **outside** the recorded pty, so the read
+    itself never appears in the `.cast`; a non-zero exit (file doesn't
+    exist) falls back to [FR-CLI-009](#fr-cli-009--write_vim-step-blank-mode).
+  - A line-level `difflib.SequenceMatcher` diff between the before and
+    after (`content`) line lists drives vim line motions: unchanged runs
+    are skipped over, removed lines are deleted (`dd`), added lines are
+    inserted (`o`/`O` + typed content), all as instant ex/normal-mode
+    commands — only actually-inserted text is human-typed.
+  - For a `replace` block where the before/after line counts match (the
+    common single-line-edit case), each line pair gets a further
+    **character-level** `SequenceMatcher` diff so only the actually-changed
+    span of the line is deleted/retyped (via column-jump + `x` + `i`),
+    leaving the rest of the line untouched. A line-count mismatch inside a
+    `replace` block falls back to whole-block delete-then-insert.
+  - `force_blank: true` on the step skips the container read entirely and
+    always uses blank mode, regardless of what's on disk.
+- **Known limitations:** vim's column-jump motion addresses virtual
+  columns, which can misalign for multi-byte (non-ASCII) content; a
+  line-count-mismatched `replace` block does not attempt partial
+  line-alignment within the block.
+- **Dependencies:** [FR-CLI-009](#fr-cli-009--write_vim-step-blank-mode)
+  (shares the vim session setup and typing primitive),
+  [FR-EDIT-005](./scenario-authoring.md#fr-edit-005--write_vim-step-schema).
+
+## FR-CLI-011 — Typo simulation for write_vim
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Could
+- **Statement:** A `write_vim` step can optionally simulate occasional
+  human typos — a wrong keystroke, a pause, a backspace, then the correct
+  character — instead of typing purely forward.
+- **Acceptance criteria:**
+  - Only applies when the step sets `simulate_typos: true`
+    ([FR-EDIT-005](./scenario-authoring.md#fr-edit-005--write_vim-step-schema));
+    default is plain forward typing, unchanged from
+    [FR-CLI-003](#fr-cli-003--record-with-human-like-typing).
+  - Applies only to actually-inserted text in either write_vim mode, never
+    to the `vim -n -i NONE <path>` command line itself or to any other step
+    type.
+  - For each alphanumeric character, a small fixed chance (~3%) sends a
+    wrong nearby-key character (drawn from a hardcoded QWERTY-adjacency
+    map), pauses briefly, sends a real Backspace, then continues with the
+    correct character — same per-character jitter timing as
+    [FR-CLI-003](#fr-cli-003--record-with-human-like-typing) otherwise. The
+    typo rate is an internal constant, not a scenario-configurable value.
+- **Dependencies:** [FR-CLI-009](#fr-cli-009--write_vim-step-blank-mode),
+  [FR-CLI-010](#fr-cli-010--write_vim-step-diffliveedit-mode).

@@ -62,23 +62,30 @@ class TypingConfig(BaseModel):
 
 
 class ScenarioStep(BaseModel):
-    type: Literal["command", "comment", "write_file"]
+    type: Literal["command", "comment", "write_file", "write_vim"]
     text: Optional[str] = None
     path: Optional[str] = None
     content: Optional[str] = None
     content_file: Optional[str] = None
     pause_after: Optional[float] = None
+    # write_vim only (see FR-EDIT-005): simulate occasional typos while
+    # typing, and always start from a blank buffer instead of auto-diffing
+    # against whatever's already at `path` in the container. Optional/None
+    # (not a plain bool default) so they're omitted, like pause_after, from
+    # steps that don't set them rather than cluttering every step's YAML.
+    simulate_typos: Optional[bool] = None
+    force_blank: Optional[bool] = None
 
     @model_validator(mode="after")
     def check_fields_for_type(self):
         if self.type in ("command", "comment") and not self.text:
             raise ValueError(f"step of type '{self.type}' requires 'text'")
-        if self.type == "write_file":
+        if self.type in ("write_file", "write_vim"):
             if not self.path:
-                raise ValueError("step of type 'write_file' requires 'path'")
+                raise ValueError(f"step of type '{self.type}' requires 'path'")
             if not self.content and not self.content_file:
                 raise ValueError(
-                    "step of type 'write_file' requires 'content' or 'content_file'"
+                    f"step of type '{self.type}' requires 'content' or 'content_file'"
                 )
         return self
 
