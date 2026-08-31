@@ -161,6 +161,12 @@ def main():
             codec_errors="replace",
             timeout=None,
         )
+        # Mirror the pty content (typed commands + their real output) to our
+        # own stdout, alongside the progress prints above, so a caller
+        # capturing this process's stdout/stderr (e.g. render_pipeline.py)
+        # sees what actually happened inside the container, not just that
+        # asciinema recorded *something*.
+        child.logfile_read = sys.stdout
         time.sleep(PROMPT_SETTLE + 1.0)  # let container shell settle
 
         for step in cfg["steps"]:

@@ -18,11 +18,13 @@ placeholder gaps, not confirmed absence of coverage elsewhere.
 | FR-REND-001 | `backend/app/routers/jobs.py::start_render` | `backend/tests/test_api.py::test_render_requires_steps` |
 | FR-REND-002 | `backend/app/models.py::JobStatus`, `tasks.py` | — |
 | FR-REND-003 | `backend/app/render_pipeline.py::_materialize_workspace`, `_materialize_scenario_yaml` | — |
-| FR-REND-004 | `backend/app/render_pipeline.py::run_render` | — |
-| FR-REND-005 | `backend/app/render_pipeline.py::RenderError`, `tasks.py::render_scenario_job` | — |
+| FR-REND-004 | `backend/app/render_pipeline.py::run_render`, `_run_streaming`, `_ANSI_RE`, `driver.py` (`child.logfile_read`) | — |
+| FR-REND-005 | `backend/app/render_pipeline.py::RenderError`, `tasks.py::render_scenario_job` (incl. `traceback.format_exc()`) | — |
 | FR-REND-006 | `backend/app/routers/jobs.py::list_jobs`, `get_job`, `serialize.py::job_to_read` | — |
 | FR-REND-007 | `frontend/src/components/app/ScenarioCard.tsx`, `ScenarioEditorPage.tsx` | — |
 | FR-REND-008 | `backend/app/routers/jobs.py::start_render` (`job_timeout=1800`) | — |
+| FR-REND-009 | `backend/app/routers/jobs.py::get_job_log`, `frontend/src/components/app/JobLogDialog.tsx` | — |
+| FR-REND-010 | `backend/app/render_pipeline.py::_run_streaming`, `backend/app/tasks.py::render_scenario_job::on_log` | — |
 | FR-CLI-001 | `scenario.example.yaml`, `driver.py::load_scenario` | — |
 | FR-CLI-002 | `driver.py::start_container`, `stop_container` | — |
 | FR-CLI-003 | `driver.py::human_type`, `run_command` | — |

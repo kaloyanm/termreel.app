@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -42,3 +43,11 @@ def get_job(job_id: str, session: Session = Depends(get_session)):
     if not job:
         raise HTTPException(404, "job not found")
     return job_to_read(job)
+
+
+@router.get("/api/jobs/{job_id}/log", response_class=PlainTextResponse)
+def get_job_log(job_id: str, session: Session = Depends(get_session)):
+    job = session.get(RenderJob, job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    return job.log

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Scenarios } from "@/lib/api";
 import { StepEditor } from "@/components/app/StepEditor";
+import { JobLogDialog } from "@/components/app/JobLogDialog";
 import type { DockerConfig, ScenarioStep, TypingConfig } from "@/types";
 
 const emptyStep = (type: ScenarioStep["type"] = "command"): ScenarioStep => ({
@@ -109,6 +110,7 @@ export default function ScenarioEditorPage() {
             {job.status}
           </Badge>
         )}
+        {job && <JobLogDialog jobId={job.id} status={job.status} />}
         <div className="ml-auto flex gap-2">
           <Button variant="outline" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
             <Save /> Save

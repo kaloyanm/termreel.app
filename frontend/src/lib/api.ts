@@ -39,4 +39,5 @@ export const Scenarios = {
 
 export const Jobs = {
   get: (id: string) => api.get<RenderJob>(`/jobs/${id}`).then((r) => r.data),
+  log: (id: string) => api.get<string>(`/jobs/${id}/log`, { responseType: "text" }).then((r) => r.data),
 };

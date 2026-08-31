@@ -5,10 +5,11 @@ scenario into the same YAML shape as scenario.example.yaml, then shells out
 to the untouched root-level driver.py (asciinema + docker + pexpect) and
 render.sh (agg + ffmpeg), exactly as described in the repo README.
 """
+import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
@@ -16,11 +17,27 @@ from app.config import DEMO_REPO_DIR, DRIVER_PY, MEDIA_DIR, RENDER_SH, REPO_ROOT
 
 ROOT_PYTHON = REPO_ROOT / ".venv" / "bin" / "python3"
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+OnLog = Callable[[str], None]
+
 
 class RenderError(RuntimeError):
-    def __init__(self, message: str, log: str = ""):
-        super().__init__(message)
-        self.log = log
+    pass
+
+
+def _run_streaming(cmd: list[str], cwd: Path, on_log: OnLog) -> int:
+    """Runs cmd, streaming its combined stdout/stderr line-by-line to on_log
+    (ANSI-stripped) as it's produced, instead of buffering until exit."""
+    on_log("$ " + " ".join(cmd) + "\n")
+    proc = subprocess.Popen(
+        cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1,
+    )
+    for line in proc.stdout:
+        on_log(_ANSI_RE.sub("", line))
+    proc.wait()
+    return proc.returncode
 
 
 def _materialize_workspace(job_id: str, docker_cfg: dict[str, Any]) -> Path:
@@ -89,11 +106,15 @@ def run_render(
     docker_cfg: dict[str, Any],
     typing_cfg: dict[str, Any],
     steps: list[dict[str, Any]],
+    on_log: OnLog,
     theme: str = "dracula",
 ) -> dict[str, str]:
     """Runs the full pipeline for one job. Returns relative media paths.
 
-    Raises RenderError with captured stdout/stderr on any failure.
+    Streams combined stdout/stderr of both stages to on_log as it's
+    produced. Raises RenderError on failure; by then on_log has already
+    received everything captured, so RenderError itself only carries a
+    short message.
     """
     workspace = _materialize_workspace(job_id, docker_cfg)
     yaml_path = _materialize_scenario_yaml(
@@ -105,28 +126,23 @@ def run_render(
     cast_path = job_media_dir / "session.cast"
     out_base = job_media_dir / "episode"
 
-    log_parts = []
-
     driver_python = ROOT_PYTHON if ROOT_PYTHON.exists() else "python3"
     driver_cmd = [
-        str(driver_python), str(DRIVER_PY), str(yaml_path), "--out", str(cast_path),
+        str(driver_python), "-u", str(DRIVER_PY), str(yaml_path), "--out", str(cast_path),
     ]
-    proc = subprocess.run(driver_cmd, cwd=REPO_ROOT, capture_output=True, text=True)
-    log_parts.append("$ " + " ".join(driver_cmd) + "\n" + proc.stdout + proc.stderr)
-    if proc.returncode != 0 or not cast_path.exists():
-        raise RenderError("driver.py failed to record the session", "\n".join(log_parts))
+    returncode = _run_streaming(driver_cmd, REPO_ROOT, on_log)
+    if returncode != 0 or not cast_path.exists():
+        raise RenderError("driver.py failed to record the session")
 
     render_cmd = [str(RENDER_SH), str(cast_path), str(out_base), theme]
-    proc = subprocess.run(render_cmd, cwd=REPO_ROOT, capture_output=True, text=True)
-    log_parts.append("$ " + " ".join(render_cmd) + "\n" + proc.stdout + proc.stderr)
+    returncode = _run_streaming(render_cmd, REPO_ROOT, on_log)
     gif_path = out_base.with_suffix(".gif")
     mp4_path = out_base.with_suffix(".mp4")
-    if proc.returncode != 0 or not mp4_path.exists():
-        raise RenderError("render.sh failed to produce a video", "\n".join(log_parts))
+    if returncode != 0 or not mp4_path.exists():
+        raise RenderError("render.sh failed to produce a video")
 
     return {
         "cast_path": str(cast_path.relative_to(MEDIA_DIR)),
         "gif_path": str(gif_path.relative_to(MEDIA_DIR)),
         "mp4_path": str(mp4_path.relative_to(MEDIA_DIR)),
-        "log": "\n".join(log_parts),
     }

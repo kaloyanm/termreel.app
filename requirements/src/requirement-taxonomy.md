@@ -35,3 +35,12 @@ documentation per the skill's editing rules) — no aspirational behavior has
 been invented. Future discussions should update/extend these via the normal
 preserve/update/extend workflow, recording deltas in the
 [Changelog](./changelog.md).
+
+Starting 2026-08-31, FRs/criteria agreed in a design discussion but **not
+yet implemented** are marked `**Status:** Planned — not yet implemented` at
+the point they're added, so the baseline never silently claims shipped
+behavior that isn't there. Once built, the Planned marker is replaced with
+an `Implemented <date>` status as part of that PR (no ID renumbering) — see
+[FR-REND-009](./functional-requirements/render-pipeline.md#fr-rend-009--detailed-render-log-available-on-demand)/[FR-REND-010](./functional-requirements/render-pipeline.md#fr-rend-010--render-log-streams-while-the-job-runs)
+for the first FRs to go through the full planned → implemented cycle, same
+day.

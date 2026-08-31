@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Scenarios } from "@/lib/api";
 import type { Scenario } from "@/types";
+import { JobLogDialog } from "./JobLogDialog";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   queued: "secondary",
@@ -97,6 +98,7 @@ export function ScenarioCard({ scenario: initial }: { scenario: Scenario }) {
         >
           <Play /> {isActive ? "Rendering…" : "Render"}
         </Button>
+        {job && <JobLogDialog jobId={job.id} status={job.status} />}
         <Button
           size="sm"
           variant="ghost"
