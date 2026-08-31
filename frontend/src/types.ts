@@ -16,11 +16,18 @@ export interface Playlist {
 }
 
 export interface DockerConfig {
-  image: string;
+  flavour: string;
   container_name: string;
   mount_host_path: string;
   mount_container_path: string;
   workdir?: string;
+}
+
+export interface Flavour {
+  id: string;
+  display_name: string;
+  dockerfile: string;
+  description: string;
 }
 
 export interface TypingConfig {

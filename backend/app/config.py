@@ -12,6 +12,8 @@ DB_PATH = DATA_DIR / "app.db"
 DRIVER_PY = REPO_ROOT / "driver.py"
 RENDER_SH = REPO_ROOT / "render.sh"
 DEMO_REPO_DIR = REPO_ROOT / "demo-repo"
+FLAVOURS_DIR = REPO_ROOT / "flavours"
+FLAVOURS_MANIFEST = FLAVOURS_DIR / "flavours.yaml"
 FRONTEND_DIST_DIR = REPO_ROOT / "frontend" / "dist"
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")

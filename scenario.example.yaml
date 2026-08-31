@@ -6,7 +6,7 @@
 title: "Fix a race condition in a Go worker pool"
 
 docker:
-  image: "golang:1.22"
+  flavour: "rust"
   container_name: "ytdemo_race_condition"
   # Host directory mounted into the container at /repo.
   # Populate this with whatever source code the episode needs.

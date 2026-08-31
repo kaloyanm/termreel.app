@@ -86,15 +86,18 @@ pip install -r requirements.txt
 
 See `scenario.example.yaml`. Key fields:
 
-- `docker.image` / `mount_host_path`: what environment and source code
-  the episode uses (mounted into the container so it's inspectable/editable).
+- `docker.flavour` / `mount_host_path`: which pre-built environment (see
+  `flavours/`, e.g. `"rust"`) and source code the episode uses (mounted into
+  the container so it's inspectable/editable). A flavour is built from its
+  Dockerfile the first time it's used and cached by tag afterward.
 - `typing.base_cps` / `jitter_pct`: how "human" the typing looks.
 - `steps`: the ordered list of things that happen — `command`, `comment`
   (a typed `# ...` line for narration-in-terminal), `write_file`
   (types a heredoc header, then pastes a file's contents in), or `write_vim`
   (opens `vim` and types the content into it, character by character —
   either into a blank buffer, or as a live diff-driven edit if the target
-  file already exists in the container; requires `vim` in the image).
+  file already exists in the container; requires `vim` in the flavour's
+  image).
 
 ## 2. Record
 

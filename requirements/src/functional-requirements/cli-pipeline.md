@@ -192,3 +192,43 @@ also, transitively, a dependency of [FR-REND-*](./render-pipeline.md).
     typo rate is an internal constant, not a scenario-configurable value.
 - **Dependencies:** [FR-CLI-009](#fr-cli-009--write_vim-step-blank-mode),
   [FR-CLI-010](#fr-cli-010--write_vim-step-diffliveedit-mode).
+
+## FR-CLI-012 — Flavour resolution and build-on-demand
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)). Verified end-to-end against real
+  `docker`: first run built and tagged `termreel-flavour-rust` (~1.94GB,
+  includes vim/git), a second `resolve_flavour_image` call completed in
+  ~70ms confirming the cache-by-tag path, and `python3 driver.py
+  scenario.example.yaml --out session.cast` ran the full record pipeline
+  against the resolved image, start to finish.
+- **Priority:** Must
+- **Statement:** `start_container` resolves a scenario's `docker.flavour`
+  id to a concrete, buildable Docker image — building it on first use and
+  reusing the cached image on every later run — instead of the previous
+  `docker.image` field being handed straight to `docker run`. This lives in
+  `driver.py` itself, not the backend, per
+  [NFR-002](../non-functional-and-constraints.md#nfr-002--backend-does-not-reimplement-the-cli-pipeline):
+  the standalone CLI pipeline gets flavour support without depending on the
+  web app.
+- **Acceptance criteria:**
+  - `docker_cfg["flavour"]` is looked up in `flavours/flavours.yaml`
+    (resolved relative to `driver.py`'s own location, so it works
+    regardless of the caller's cwd) to find its Dockerfile.
+  - The resulting image is tagged `termreel-flavour-<id>`.
+  - Before building, `docker image inspect termreel-flavour-<id>` checks
+    whether the tag already exists; only if it doesn't does
+    `docker build -t termreel-flavour-<id> flavours/<id>/` run.
+  - Caching is by tag only, not by Dockerfile content hash — editing a
+    flavour's Dockerfile does **not** automatically invalidate a
+    previously-built image; forcing a rebuild means manually
+    `docker rmi termreel-flavour-<id>`. This is a deliberate, documented
+    trade-off in favor of simplicity over automatic invalidation.
+  - The resolved tag, not a raw `docker.image` value, is what's passed to
+    `docker run` in place of the field `docker_cfg["image"]` previously
+    occupied.
+- **Dependencies:** [FR-CLI-002](#fr-cli-002--start-and-tear-down-the-container)
+  (the container this builds an image for),
+  [FR-EDIT-002](./scenario-authoring.md#fr-edit-002--docker-environment-config),
+  [FR-EDIT-008](./scenario-authoring.md#fr-edit-008--flavour-catalog-for-scenario-authoring)
+  (same manifest, read from both sides).

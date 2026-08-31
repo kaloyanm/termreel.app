@@ -6,8 +6,9 @@ from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select
 
 from app.db import get_session
+from app.flavours import flavour_ids
 from app.models import Playlist, Scenario
-from app.schemas import ScenarioCreate, ScenarioRead, ScenarioUpdate
+from app.schemas import DockerConfig, ScenarioCreate, ScenarioRead, ScenarioUpdate
 from app.serialize import scenario_to_read
 
 router = APIRouter(tags=["scenarios"])
@@ -19,6 +20,11 @@ router = APIRouter(tags=["scenarios"])
 # vim commands, not human-typed; its insertions are always a subset of
 # `content`), so this never needs the container's live "before" state.
 WRITE_VIM_TYPING_TIME_LIMIT_S = 60
+
+
+def _check_flavour(docker_cfg: DockerConfig):
+    if docker_cfg.flavour not in flavour_ids():
+        raise HTTPException(422, f"unknown flavour '{docker_cfg.flavour}'")
 
 
 def _check_write_vim_typing_time(steps: list[dict], typing_cfg: dict):
@@ -50,6 +56,7 @@ def list_scenarios(playlist_id: str, session: Session = Depends(get_session)):
 def create_scenario(playlist_id: str, body: ScenarioCreate, session: Session = Depends(get_session)):
     if not session.get(Playlist, playlist_id):
         raise HTTPException(404, "playlist not found")
+    _check_flavour(body.docker)
     typing_cfg = body.typing.model_dump(exclude_none=True)
     steps = [s.model_dump(exclude_none=True) for s in body.steps]
     _check_write_vim_typing_time(steps, typing_cfg)
@@ -84,6 +91,8 @@ def update_scenario(scenario_id: str, body: ScenarioUpdate, session: Session = D
         [s.model_dump(exclude_none=True) for s in body.steps] if body.steps is not None else scenario.steps
     )
     _check_write_vim_typing_time(effective_steps, effective_typing)
+    if body.docker is not None:
+        _check_flavour(body.docker)
     if body.title is not None:
         scenario.title = body.title
     if body.docker is not None:

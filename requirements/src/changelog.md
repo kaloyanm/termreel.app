@@ -1,5 +1,71 @@
 # Changelog
 
+## 2026-08-31 — Flavours: pre-built Docker environments replace free-text image (planned, then implemented same day)
+
+- Prompted by: wanting scenarios to run in environments with all needed
+  tools already baked in (starting with a "Rust" environment based on
+  `rust:1.60.0-bullseye`), instead of relying on whatever a public base
+  image happens to ship with — a real gap for `write_vim` steps, which call
+  `vim` directly with no auto-install.
+- Captured via a `grill-me` design session (interview, one branch at a
+  time; codebase exploration confirmed there was no prior notion of
+  flavours/presets/image variants anywhere in code or docs).
+- Updated [FR-EDIT-002](./functional-requirements/scenario-authoring.md#fr-edit-002--docker-environment-config):
+  `docker.image` (free-text) replaced outright by `docker.flavour` (an id
+  validated against a fixed catalog) — no dual-field back-compat, no DB
+  migration, since this is a pre-release app with no real user base and no
+  migration tooling (SQLite/SQLModel, no alembic).
+- Added [FR-EDIT-008](./functional-requirements/scenario-authoring.md#fr-edit-008--flavour-catalog-for-scenario-authoring)
+  (`GET /api/flavours`, backed by a `flavours/flavours.yaml` manifest,
+  feeding the editor's dropdown and card display) and
+  [FR-CLI-012](./functional-requirements/cli-pipeline.md#fr-cli-012--flavour-resolution-and-build-on-demand)
+  (flavour→image resolution and build-on-demand, cached by tag, living in
+  `driver.py` itself per [NFR-002](./non-functional-and-constraints.md#nfr-002--backend-does-not-reimplement-the-cli-pipeline)).
+- `scenario.example.yaml` updated to `docker.flavour: "rust"` so the
+  standalone CLI pipeline keeps working end-to-end without extra setup.
+- Verified: `backend/tests/test_api.py` (10 tests, including 2 new —
+  `test_list_flavours`, `test_scenario_rejects_unknown_flavour`) and
+  `frontend`'s `tsc -b && vite build`/`oxlint` all pass. End-to-end against
+  real `docker`: first `resolve_flavour_image("rust")` call built and
+  tagged `termreel-flavour-rust` (Dockerfile confirmed to include working
+  `vim`/`git`); a second call completed in ~70ms confirming the cache-by-tag
+  path skips rebuilding; `python3 driver.py scenario.example.yaml --out
+  session.cast` ran the full record pipeline against the resolved image,
+  start to finish (its Go-specific demo commands predictably `command not
+  found` inside the Rust container — the accepted, documented mismatch from
+  the design session, not a defect).
+
+### Decisions made during the design session (interview, one branch at a time)
+
+- Build trigger: on-demand, cached by image tag (`termreel-flavour-<id>`) —
+  not pre-built-and-pushed-elsewhere, and not hash-based cache
+  invalidation. Editing a flavour's Dockerfile requires a manual
+  `docker rmi` to force a rebuild; explicitly accepted as simpler than
+  automatic invalidation.
+- Registry: a `flavours/<id>/Dockerfile` directory convention plus a
+  `flavours/flavours.yaml` manifest, both at repo root — not a DB table,
+  since flavours are authored in advance by the maintainer, not by
+  scenario authors through the app.
+- Schema: full replacement of `docker.image` by `docker.flavour`, no
+  migration — explicitly rejected keeping both fields side by side.
+- Rust Dockerfile contents: `rust:1.60.0-bullseye` plus `vim`/`git`/common
+  CLI basics installed on top, since the base image doesn't include vim and
+  `write_vim` steps call it directly with no auto-install.
+- Where flavour resolution lives: inside `driver.py`'s `start_container`,
+  not `render_pipeline.py` — preserves the "standalone CLI pipeline works
+  without the web app" property and the backend's own
+  don't-reimplement-the-pipeline invariant.
+- Validation timing: the backend validates `docker.flavour` against the
+  manifest at scenario save time (422 on unknown id) — explicitly rejected
+  deferring the error to render time.
+- Display name resolution: the frontend fetches `/api/flavours` once and
+  joins client-side — explicitly rejected denormalizing a
+  `flavour_display_name` into every `Scenario` API response.
+- `scenario.example.yaml`: updated to reference the new `rust` flavour so
+  the CLI pipeline keeps working out of the box, even though its Go-focused
+  demo steps don't map cleanly onto a Rust environment — explicitly
+  accepted as a follow-up cleanup rather than blocking this change.
+
 ## 2026-08-31 — write_vim step type (planned, then implemented same day)
 
 - Prompted by: wanting a step type that visibly types a file into `vim` in

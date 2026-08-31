@@ -1,7 +1,11 @@
 import axios from "axios";
-import type { Playlist, Project, RenderJob, Scenario } from "@/types";
+import type { Flavour, Playlist, Project, RenderJob, Scenario } from "@/types";
 
 export const api = axios.create({ baseURL: "/api" });
+
+export const Flavours = {
+  list: () => api.get<Flavour[]>("/flavours").then((r) => r.data),
+};
 
 export const Projects = {
   list: () => api.get<Project[]>("/projects").then((r) => r.data),

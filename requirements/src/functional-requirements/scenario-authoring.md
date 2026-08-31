@@ -24,16 +24,32 @@ exact shape of `scenario.example.yaml`, so it round-trips to a YAML file
 
 ## FR-EDIT-002 — Docker environment config
 
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)). Supersedes the original
+  free-text `docker.image` design captured in the 2026-08-30 baseline.
 - **Priority:** Must
-- **Statement:** A scenario declares which Docker image the recording runs
-  in and which host directory is mounted into the container as the
-  episode's source tree.
+- **Statement:** A scenario declares which **Flavour** — a named, pre-built
+  Docker environment with its own Dockerfile — the recording runs in, and
+  which host directory is mounted into the container as the episode's
+  source tree. Flavours are authored in advance (by whoever maintains the
+  repo, not scenario authors) under `flavours/`; a scenario picks one by id
+  from a fixed catalog rather than typing a raw image reference.
 - **Acceptance criteria:**
-  - `docker.image` and `docker.container_name` are required.
+  - `docker.flavour` (a flavour id, e.g. `"rust"`) and
+    `docker.container_name` are required. The free-text `docker.image`
+    field no longer exists — this is a full replacement, not an additive
+    option (no dual-field back-compat; the app has no real user base or
+    migration tooling to protect).
+  - `docker.flavour` is validated against the flavour catalog
+    ([FR-EDIT-008](#fr-edit-008--flavour-catalog-for-scenario-authoring)) on
+    `POST`/`PUT`; an unknown id is rejected with `422`, before it reaches
+    the database.
   - `docker.mount_host_path` defaults to `./demo-repo`;
     `docker.mount_container_path` defaults to `/repo`.
   - `docker.workdir` is optional (falls back to `mount_container_path` at
     record time — see [FR-CLI-002](./cli-pipeline.md#fr-cli-002--start-and-tear-down-the-container)).
+- **Dependencies:** [FR-EDIT-008](#fr-edit-008--flavour-catalog-for-scenario-authoring),
+  [FR-CLI-012](./cli-pipeline.md#fr-cli-012--flavour-resolution-and-build-on-demand).
 
 ## FR-EDIT-003 — Typing style config
 
@@ -119,3 +135,29 @@ exact shape of `scenario.example.yaml`, so it round-trips to a YAML file
     `typing` entirely.
   - A step authored with only `content_file` (no inline `content`) has
     nothing to measure at save time and is skipped by this check.
+
+## FR-EDIT-008 — Flavour catalog for scenario authoring
+
+- **Status:** Implemented 2026-08-31 (grill-me design session, same-day
+  build; see [Changelog](../changelog.md)).
+- **Priority:** Must
+- **Statement:** The set of available Flavours is discoverable so the
+  scenario editor can offer a dropdown instead of a free-text image field,
+  and so the backend can validate a scenario's `docker.flavour` against
+  something real.
+- **Acceptance criteria:**
+  - `GET /api/flavours` returns the catalog read from `flavours/flavours.yaml`
+    (repo root): each entry has `id`, `display_name`, and the Dockerfile
+    path it builds from; an optional `description`.
+  - The frontend fetches this list once and joins it client-side wherever a
+    flavour needs a human-readable label — `NewScenarioDialog` (create-time
+    picker, defaulting to the catalog's first entry),
+    `ScenarioEditorPage` (environment tab), and `ScenarioCard` (read-only
+    display on the playlist grid). The `Scenario` API response itself does
+    **not** carry a denormalized display name.
+  - Adding a new flavour is a new `flavours/<id>/Dockerfile` plus one
+    manifest entry — no DB migration, no code change to the catalog
+    endpoint.
+- **Dependencies:** [FR-CLI-012](./cli-pipeline.md#fr-cli-012--flavour-resolution-and-build-on-demand)
+  (same manifest is the source of truth for both the catalog endpoint and
+  the build step).

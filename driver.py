@@ -36,6 +36,31 @@ def load_scenario(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+FLAVOURS_DIR = Path(__file__).resolve().parent / "flavours"
+FLAVOURS_MANIFEST = FLAVOURS_DIR / "flavours.yaml"
+
+
+def resolve_flavour_image(flavour_id: str) -> str:
+    """Resolve a flavour id to a built, runnable image tag, building it from
+    its Dockerfile on first use and reusing the cached tag afterward."""
+    manifest = yaml.safe_load(FLAVOURS_MANIFEST.read_text())
+    entry = next((f for f in manifest if f["id"] == flavour_id), None)
+    if entry is None:
+        raise ValueError(
+            f"Unknown flavour '{flavour_id}' — no entry in {FLAVOURS_MANIFEST}"
+        )
+
+    tag = f"termreel-flavour-{flavour_id}"
+    inspect = subprocess.run(
+        ["docker", "image", "inspect", tag],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    if inspect.returncode != 0:
+        build_context = (Path(__file__).resolve().parent / entry["dockerfile"]).parent
+        subprocess.run(["docker", "build", "-t", tag, str(build_context)], check=True)
+    return tag
+
+
 def start_container(cfg: dict) -> str:
     """Start a detached container we can exec into. Returns container name."""
     docker_cfg = cfg["docker"]
@@ -48,12 +73,14 @@ def start_container(cfg: dict) -> str:
     mount_host = str(Path(docker_cfg["mount_host_path"]).resolve())
     Path(mount_host).mkdir(parents=True, exist_ok=True)
 
+    image = resolve_flavour_image(docker_cfg["flavour"])
+
     cmd = [
         "docker", "run", "-d",
         "--name", name,
         "-v", f"{mount_host}:{docker_cfg['mount_container_path']}",
         "-w", docker_cfg.get("workdir", docker_cfg["mount_container_path"]),
-        docker_cfg["image"],
+        image,
         "sleep", "infinity",
     ]
     subprocess.run(cmd, check=True)

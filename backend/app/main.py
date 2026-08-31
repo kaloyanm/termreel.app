@@ -8,7 +8,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.config import ALLOWED_ORIGINS, FRONTEND_DIST_DIR, MEDIA_DIR
 from app.db import init_db
-from app.routers import jobs, playlists, projects, scenarios
+from app.routers import flavours, jobs, playlists, projects, scenarios
 
 
 @asynccontextmanager
@@ -35,6 +35,7 @@ app.include_router(projects.router)
 app.include_router(playlists.router)
 app.include_router(scenarios.router)
 app.include_router(jobs.router)
+app.include_router(flavours.router)
 
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 

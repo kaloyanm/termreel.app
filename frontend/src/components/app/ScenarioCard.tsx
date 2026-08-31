@@ -5,6 +5,7 @@ import { Play, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { useFlavourDisplayName } from "@/hooks/use-flavours";
 import { Scenarios } from "@/lib/api";
 import type { Scenario } from "@/types";
 import { JobLogDialog } from "./JobLogDialog";
@@ -46,6 +47,8 @@ export function ScenarioCard({ scenario: initial }: { scenario: Scenario }) {
     },
   });
 
+  const flavourName = useFlavourDisplayName(scenario?.docker.flavour);
+
   if (!scenario) return null;
   const job = scenario.latest_job;
 
@@ -66,7 +69,7 @@ export function ScenarioCard({ scenario: initial }: { scenario: Scenario }) {
         </div>
         <CardDescription>
           {scenario.steps.length} step{scenario.steps.length === 1 ? "" : "s"} ·{" "}
-          {scenario.docker.image}
+          {flavourName}
         </CardDescription>
       </CardHeader>
       {job?.status === "failed" && (

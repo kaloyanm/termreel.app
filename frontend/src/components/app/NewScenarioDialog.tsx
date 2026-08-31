@@ -13,6 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useFlavours } from "@/hooks/use-flavours";
 import { Scenarios } from "@/lib/api";
 
 export function NewScenarioDialog({
@@ -25,7 +33,9 @@ export function NewScenarioDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [image, setImage] = useState("golang:1.22");
+  const { data: flavours } = useFlavours();
+  const [flavour, setFlavour] = useState<string | undefined>(undefined);
+  const selectedFlavour = flavour ?? flavours?.[0]?.id;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -34,7 +44,7 @@ export function NewScenarioDialog({
       Scenarios.create(playlistId, {
         title,
         docker: {
-          image,
+          flavour: selectedFlavour!,
           container_name: `ytdemo_${Date.now()}`,
           mount_host_path: "./demo-repo",
           mount_container_path: "/repo",
@@ -75,20 +85,29 @@ export function NewScenarioDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="scenario-image">Docker image</Label>
-            <Input
-              id="scenario-image"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="golang:1.22"
-            />
+            <Label htmlFor="scenario-flavour">Flavour</Label>
+            <Select value={selectedFlavour} onValueChange={(v) => setFlavour(v ?? undefined)}>
+              <SelectTrigger id="scenario-flavour" className="w-full">
+                <SelectValue placeholder="Select a flavour" />
+              </SelectTrigger>
+              <SelectContent>
+                {flavours?.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={!title.trim() || !image.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
+          <Button
+            disabled={!title.trim() || !selectedFlavour || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
             {mutation.isPending ? "Creating…" : "Create & edit"}
           </Button>
         </DialogFooter>

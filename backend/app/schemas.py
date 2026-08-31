@@ -45,10 +45,19 @@ class PlaylistRead(BaseModel):
     scenario_count: int = 0
 
 
+# ---- Flavours ----
+
+class FlavourRead(BaseModel):
+    id: str
+    display_name: str
+    dockerfile: str
+    description: str = ""
+
+
 # ---- Scenario steps (mirrors scenario.example.yaml) ----
 
 class DockerConfig(BaseModel):
-    image: str
+    flavour: str
     container_name: str
     mount_host_path: str = "./demo-repo"
     mount_container_path: str = "/repo"

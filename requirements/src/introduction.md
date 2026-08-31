@@ -40,6 +40,7 @@ deprecate rather than starting from a blank page.
 | Render job | One request to turn a scenario into a `.cast` recording and then a `.gif`/`.mp4`. Has its own lifecycle independent of the scenario it was created from. |
 | Cast file | An `asciinema` recording: structured terminal events (timing + text), not pixels — enables re-rendering with a different theme/font without re-running the container. |
 | Workspace | A per-render-job filesystem directory, copied from the scenario's `docker.mount_host_path`, that isolates concurrent renders of the same scenario from each other. |
+| Flavour | A named, pre-built Docker environment (a Dockerfile under `flavours/`, e.g. "Rust") that a scenario selects by id (`docker.flavour`) instead of a free-text image reference. Authored in advance by whoever maintains the repo, not by scenario authors. |
 
 ## Out of scope
 

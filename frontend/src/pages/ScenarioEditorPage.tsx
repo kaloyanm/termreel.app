@@ -10,6 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useFlavours } from "@/hooks/use-flavours";
 import { Scenarios } from "@/lib/api";
 import { StepEditor } from "@/components/app/StepEditor";
 import { JobLogDialog } from "@/components/app/JobLogDialog";
@@ -36,6 +44,8 @@ export default function ScenarioEditorPage() {
     queryFn: () => Scenarios.get(scenarioId!),
     enabled: !!scenarioId,
   });
+
+  const { data: flavours } = useFlavours();
 
   const [title, setTitle] = useState("");
   const [docker, setDocker] = useState<DockerConfig | null>(null);
@@ -190,7 +200,21 @@ export default function ScenarioEditorPage() {
               <CardTitle className="text-base">Docker</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4">
-              <Field label="Image" value={docker.image} onChange={(v) => setDocker({ ...docker, image: v })} placeholder="golang:1.22" />
+              <div className="space-y-1.5">
+                <Label htmlFor="docker-flavour">Flavour</Label>
+                <Select value={docker.flavour} onValueChange={(v) => setDocker({ ...docker, flavour: v ?? "" })}>
+                  <SelectTrigger id="docker-flavour" className="w-full">
+                    <SelectValue placeholder="Select a flavour" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {flavours?.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Field label="Container name" value={docker.container_name} onChange={(v) => setDocker({ ...docker, container_name: v })} />
               <Field label="Mount host path" value={docker.mount_host_path} onChange={(v) => setDocker({ ...docker, mount_host_path: v })} />
               <Field label="Mount container path" value={docker.mount_container_path} onChange={(v) => setDocker({ ...docker, mount_container_path: v })} />

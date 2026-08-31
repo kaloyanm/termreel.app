@@ -1,0 +1,11 @@
+# Flavour catalog: pre-built Docker environments a scenario can select
+# instead of a free-text image reference. See FR-EDIT-002/FR-EDIT-008/
+# FR-CLI-012 in requirements/src/functional-requirements/.
+#
+# Adding a flavour: create flavours/<id>/Dockerfile, then add an entry here.
+# No code change or DB migration needed.
+
+- id: rust
+  display_name: Rust
+  dockerfile: flavours/rust/Dockerfile
+  description: "rust:1.60.0-bullseye plus vim and git for write_vim steps and repo inspection."

@@ -49,7 +49,7 @@ def test_project_playlist_scenario_flow(client):
     scenario_payload = {
         "title": "Demo episode",
         "docker": {
-            "image": "golang:1.22",
+            "flavour": "rust",
             "container_name": "demo",
             "mount_host_path": "./demo-repo",
             "mount_container_path": "/repo",
@@ -94,7 +94,7 @@ def test_scenario_validation_rejects_bad_step(client):
 
     bad_payload = {
         "title": "bad",
-        "docker": {"image": "x", "container_name": "x"},
+        "docker": {"flavour": "rust", "container_name": "x"},
         "steps": [{"type": "command"}],  # missing required 'text'
     }
     r = client.post(f"/api/playlists/{playlist['id']}/scenarios", json=bad_payload)
@@ -111,7 +111,7 @@ def test_write_vim_step_round_trip(client):
         f"/api/playlists/{playlist['id']}/scenarios",
         json={
             "title": "vim demo",
-            "docker": {"image": "x", "container_name": "x"},
+            "docker": {"flavour": "rust", "container_name": "x"},
             "typing": {"base_cps": 14},
             "steps": [
                 {
@@ -142,7 +142,7 @@ def test_write_vim_requires_path_or_content(client):
         f"/api/playlists/{playlist['id']}/scenarios",
         json={
             "title": "bad vim step",
-            "docker": {"image": "x", "container_name": "x"},
+            "docker": {"flavour": "rust", "container_name": "x"},
             "steps": [{"type": "write_vim", "path": "worker.go"}],  # missing content
         },
     )
@@ -160,7 +160,7 @@ def test_write_vim_typing_time_guardrail_rejects_oversized_content(client):
         f"/api/playlists/{playlist['id']}/scenarios",
         json={
             "title": "too slow",
-            "docker": {"image": "x", "container_name": "x"},
+            "docker": {"flavour": "rust", "container_name": "x"},
             "typing": {"base_cps": 1},
             "steps": [{"type": "write_vim", "path": "f.txt", "content": "x" * 100}],
         },
@@ -179,7 +179,7 @@ def test_write_vim_typing_time_guardrail_allows_small_content(client):
         f"/api/playlists/{playlist['id']}/scenarios",
         json={
             "title": "fine",
-            "docker": {"image": "x", "container_name": "x"},
+            "docker": {"flavour": "rust", "container_name": "x"},
             "typing": {"base_cps": 14},
             "steps": [{"type": "write_vim", "path": "f.txt", "content": "short"}],
         },
@@ -196,6 +196,46 @@ def test_write_vim_typing_time_guardrail_allows_small_content(client):
     assert r.status_code == 422
 
 
+def test_list_flavours(client):
+    r = client.get("/api/flavours")
+    assert r.status_code == 200
+    flavours = r.json()
+    assert any(f["id"] == "rust" and f["display_name"] == "Rust" for f in flavours)
+
+
+def test_scenario_rejects_unknown_flavour(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "bad flavour",
+            "docker": {"flavour": "does-not-exist", "container_name": "x"},
+            "steps": [{"type": "command", "text": "echo hi"}],
+        },
+    )
+    assert r.status_code == 422
+
+    # Also rejected on update.
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "good flavour",
+            "docker": {"flavour": "rust", "container_name": "x"},
+            "steps": [{"type": "command", "text": "echo hi"}],
+        },
+    )
+    scenario = r.json()
+    r = client.put(
+        f"/api/scenarios/{scenario['id']}",
+        json={"docker": {"flavour": "does-not-exist", "container_name": "x"}},
+    )
+    assert r.status_code == 422
+
+
 def test_render_requires_steps(client):
     r = client.post("/api/projects", json={"name": "P"})
     project = r.json()
@@ -203,7 +243,7 @@ def test_render_requires_steps(client):
     playlist = r.json()
     r = client.post(
         f"/api/playlists/{playlist['id']}/scenarios",
-        json={"title": "empty", "docker": {"image": "x", "container_name": "x"}, "steps": []},
+        json={"title": "empty", "docker": {"flavour": "rust", "container_name": "x"}, "steps": []},
     )
     scenario = r.json()
     r = client.post(f"/api/scenarios/{scenario['id']}/render", json={"theme": "dracula"})
