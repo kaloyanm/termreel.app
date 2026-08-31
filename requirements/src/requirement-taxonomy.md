@@ -11,6 +11,7 @@ requirement once assigned (preserve/update/extend, never renumber).
 | `EDIT` | [Scenario authoring & export](./functional-requirements/scenario-authoring.md) |
 | `REND` | [Render pipeline (web app)](./functional-requirements/render-pipeline.md) |
 | `CLI` | [CLI recording & rendering pipeline](./functional-requirements/cli-pipeline.md) |
+| `SITE` | [Public marketing site](./functional-requirements/public-site.md) |
 
 Non-functional constraints use `NFR-###` and live in
 [Non-functional requirements & constraints](./non-functional-and-constraints.md);

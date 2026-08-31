@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-08-31 — Use Cases marketing page
+
+- Prompted by: wanting a second public page that gives a prospective
+  visitor a clearer picture of what termreel is for, beyond the mechanics
+  pitched on the landing page.
+- Added a new domain, `FR-SITE-*` ([Public marketing site](./functional-requirements/public-site.md)),
+  since the marketing site had no FRs at all in the initial baseline (it
+  wasn't part of the 2026-08-30 code audit's scope). Added
+  [FR-SITE-001](./functional-requirements/public-site.md#fr-site-001--landing-page)
+  documenting the pre-existing landing page as-is, and a new "Prospective
+  visitor" actor in [Actors & context](./actors-and-context.md).
+- Added [FR-SITE-002](./functional-requirements/public-site.md#fr-site-002--shared-site-header-and-footer)
+  (`frontend/src/components/marketing/SiteHeader.tsx`/`SiteFooter.tsx`,
+  extracted from `Landing.tsx`'s previously-inlined header/footer so both
+  marketing pages share one nav) and
+  [FR-SITE-003](./functional-requirements/public-site.md#fr-site-003--use-cases-page)
+  (`frontend/src/pages/UseCases.tsx`, a `/use-cases` route listing use
+  cases in a card grid, reachable from the shared header nav).
+- Verified: `frontend`'s `tsc -b && vite build` and `oxlint` both pass;
+  manually checked in-browser that `/` renders unchanged (now via
+  `SiteHeader`/`SiteFooter`) and that the "Use Cases" nav link routes to
+  `/use-cases` with the new content rendering correctly.
+
 ## 2026-08-31 — Flavours: pre-built Docker environments replace free-text image (planned, then implemented same day)
 
 - Prompted by: wanting scenarios to run in environments with all needed

@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Terminal, FolderKanban, ListVideo, Wand2, Container, Film } from "lucide-react";
+import { SiteHeader } from "@/components/marketing/SiteHeader";
+import { SiteFooter } from "@/components/marketing/SiteFooter";
 
 const steps = [
   {
@@ -47,15 +49,7 @@ const features = [
 export default function Landing() {
   return (
     <div className="min-h-svh flex flex-col">
-      <header className="border-b">
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2 font-semibold">
-            <Terminal className="size-5" />
-            <span>termreel</span>
-          </div>
-          <Button render={<Link to="/app/projects" />}>Open app</Button>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">
         <section className="mx-auto max-w-6xl px-6 py-24 text-center">
@@ -133,9 +127,7 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="border-t py-8 text-center text-sm text-muted-foreground">
-        termreel — built on docker, asciinema, agg and ffmpeg.
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

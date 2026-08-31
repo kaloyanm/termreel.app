@@ -6,6 +6,7 @@
 |---|---|
 | **Scenario author** | Uses either the CLI (hand-edits scenario YAML) or the web editor (`ScenarioEditorPage`) to define an episode's Docker environment, typing style, and steps. |
 | **Viewer / consumer** | Downloads or plays the rendered `.gif`/`.mp4` for use in a video editor. Not modeled as a distinct system user — same person as the author in practice today. |
+| **Prospective visitor** | Browses the public marketing site (`/`, `/use-cases`) unauthenticated, evaluating termreel before (or without) becoming a scenario author. See [Public marketing site](./functional-requirements/public-site.md). |
 
 There is currently exactly one class of human actor with full read/write
 access to everything; see [Out of scope](./introduction.md#out-of-scope).

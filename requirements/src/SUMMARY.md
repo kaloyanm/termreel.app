@@ -9,6 +9,7 @@
   - [Scenario authoring & export](./functional-requirements/scenario-authoring.md)
   - [Render pipeline (web app)](./functional-requirements/render-pipeline.md)
   - [CLI recording & rendering pipeline](./functional-requirements/cli-pipeline.md)
+  - [Public marketing site](./functional-requirements/public-site.md)
 - [Non-functional requirements & constraints](./non-functional-and-constraints.md)
 - [Traceability](./traceability.md)
 - [Changelog](./changelog.md)
