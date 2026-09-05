@@ -28,7 +28,9 @@ import pexpect
 import yaml
 
 PROMPT_SETTLE = 0.4  # brief pause after spawning, before we start typing
-TYPO_RATE = 0.03      # write_vim simulate_typos: chance per alnum char
+TYPO_RATE = 0.03  # write_vim simulate_typos: chance per alnum char
+PRESENTERM_SETTLE = 0.5  # let presenterm's alt-screen draw before driving it
+PRESENTERM_DEFAULT_SLIDE_PAUSE = 2.0  # fallback when a step omits slide_pause
 
 
 def load_scenario(path: str) -> dict:
@@ -53,7 +55,8 @@ def resolve_flavour_image(flavour_id: str) -> str:
     tag = f"termreel-flavour-{flavour_id}"
     inspect = subprocess.run(
         ["docker", "image", "inspect", tag],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     if inspect.returncode != 0:
         build_context = (Path(__file__).resolve().parent / entry["dockerfile"]).parent
@@ -67,8 +70,11 @@ def start_container(cfg: dict) -> str:
     name = docker_cfg["container_name"]
 
     # Clean up any leftover container from a previous run.
-    subprocess.run(["docker", "rm", "-f", name],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(
+        ["docker", "rm", "-f", name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
     mount_host = str(Path(docker_cfg["mount_host_path"]).resolve())
     Path(mount_host).mkdir(parents=True, exist_ok=True)
@@ -76,20 +82,29 @@ def start_container(cfg: dict) -> str:
     image = resolve_flavour_image(docker_cfg["flavour"])
 
     cmd = [
-        "docker", "run", "-d",
-        "--name", name,
-        "-v", f"{mount_host}:{docker_cfg['mount_container_path']}",
-        "-w", docker_cfg.get("workdir", docker_cfg["mount_container_path"]),
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        name,
+        "-v",
+        f"{mount_host}:{docker_cfg['mount_container_path']}",
+        "-w",
+        docker_cfg.get("workdir", docker_cfg["mount_container_path"]),
         image,
-        "sleep", "infinity",
+        "sleep",
+        "infinity",
     ]
     subprocess.run(cmd, check=True)
     return name
 
 
 def stop_container(name: str):
-    subprocess.run(["docker", "rm", "-f", name],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(
+        ["docker", "rm", "-f", name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def _char_delay(base_delay: float, jitter_pct: float, ch: str) -> float:
@@ -123,7 +138,9 @@ def _build_qwerty_adjacency() -> dict:
 QWERTY_ADJACENCY = _build_qwerty_adjacency()
 
 
-def human_type_with_typos(child: pexpect.spawn, text: str, base_cps: float, jitter_pct: float):
+def human_type_with_typos(
+    child: pexpect.spawn, text: str, base_cps: float, jitter_pct: float
+):
     """Like human_type, but occasionally fat-fingers a nearby key, pauses,
     backspaces, and retypes correctly - write_vim's simulate_typos option."""
     base_delay = 1.0 / base_cps
@@ -153,7 +170,8 @@ def _read_container_file(container_name: str, path: str) -> str | None:
     shows up in the .cast."""
     result = subprocess.run(
         ["docker", "exec", container_name, "cat", path],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return result.stdout if result.returncode == 0 else None
 
@@ -171,7 +189,9 @@ def _write_vim_blank(child: pexpect.spawn, content: str, timing: dict, typist):
     child.send("\x1b")
 
 
-def _insert_lines(child: pexpect.spawn, lines: list, timing: dict, typist, at_eof: bool):
+def _insert_lines(
+    child: pexpect.spawn, lines: list, timing: dict, typist, at_eof: bool
+):
     # 'Go' appends after the last line when inserting past the end of the
     # buffer; 'O' opens a new line above the current one everywhere else,
     # since the cursor is already sitting on the line the insertion should
@@ -182,28 +202,36 @@ def _insert_lines(child: pexpect.spawn, lines: list, timing: dict, typist, at_eo
     child.send("\x1b0")
 
 
-def _edit_line(child: pexpect.spawn, before_line: str, after_line: str, timing: dict, typist):
+def _edit_line(
+    child: pexpect.spawn, before_line: str, after_line: str, timing: dict, typist
+):
     """Character-level diff of one changed line: only the differing span
     gets deleted/retyped, the rest of the line is left untouched."""
     offset = 0
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, before_line, after_line).get_opcodes():
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+        None, before_line, after_line
+    ).get_opcodes():
         if tag == "equal":
             continue
-        col = i1 + offset + 1  # 1-indexed vim column, adjusted for edits already applied on this line
+        col = (
+            i1 + offset + 1
+        )  # 1-indexed vim column, adjusted for edits already applied on this line
         if tag in ("delete", "replace"):
             child.send(f"{col}|{i2 - i1}x")
-            offset -= (i2 - i1)
+            offset -= i2 - i1
         if tag in ("insert", "replace"):
             child.send(f"{col}|i")
             typist(child, after_line[j1:j2], timing["base_cps"], timing["jitter_pct"])
             child.send("\x1b")
-            offset += (j2 - j1)
+            offset += j2 - j1
 
 
-def _write_vim_diff(child: pexpect.spawn, before: str, after: str, timing: dict, typist):
+def _write_vim_diff(
+    child: pexpect.spawn, before: str, after: str, timing: dict, typist
+):
     """Edits the buffer (currently holding `before`) in place into `after`,
     via a line-level diff with character-level diffing of same-count
-    replace blocks - see FR-CLI-010."""
+    replace blocks."""
     before_lines, after_lines = before.split("\n"), after.split("\n")
     total = len(before_lines)
     sm = difflib.SequenceMatcher(None, before_lines, after_lines)
@@ -232,7 +260,9 @@ def run_write_vim(child: pexpect.spawn, step: dict, timing: dict, container_name
     path = step["path"]
     typist = human_type_with_typos if step.get("simulate_typos") else human_type
 
-    base_content = None if step.get("force_blank") else _read_container_file(container_name, path)
+    base_content = (
+        None if step.get("force_blank") else _read_container_file(container_name, path)
+    )
 
     # -n: no swapfile (avoids "swap file exists" prompts on repeat runs).
     # -i NONE: no viminfo file. No indent-related flags - vim's bundled
@@ -256,7 +286,85 @@ def run_write_vim(child: pexpect.spawn, step: dict, timing: dict, container_name
     time.sleep(timing.get("settle", 0.3))
 
 
-def do_step(child: pexpect.spawn, step: dict, timing: dict, cols: int, container_name: str):
+def _write_container_file_silent(container_name: str, path: str, content: str):
+    """Pipes content into a file inside the container via a plain (unrecorded)
+    subprocess - docker exec's stdin, not the recorded pty - so it never
+    shows up in the .cast, unlike write_file's visible heredoc. Used by
+    presenterm steps: the point is to show the rendered slideshow, not the
+    markdown source being typed."""
+    subprocess.run(
+        ["docker", "exec", "-i", container_name, "sh", "-c", f"cat > {path}"],
+        input=content,
+        text=True,
+        check=True,
+    )
+
+
+def _strip_presenterm_frontmatter(content: str) -> tuple[str, bool]:
+    """Returns (body, had_frontmatter). presenterm recognizes an optional
+    YAML front matter block only when the file's very first line is exactly
+    '---' (no leading blank lines tolerated) - matches presenterm's own
+    parser. An unterminated block (no closing '---') is malformed input;
+    rather than guess, it's treated as having no front matter."""
+    lines = content.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return content, False
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "\n".join(lines[i + 1 :]), True
+    return content, False
+
+
+def _count_presenterm_slides(content: str) -> int:
+    """presenterm separates slides with `<!-- end_slide -->` comments (not
+    `---`, which is reserved for the optional front matter block above and
+    - when present - renders as one extra introduction slide). Known
+    limitation: an `<!-- end_slide -->` string appearing inside the deck's
+    own body (e.g. a fenced code block demonstrating presenterm syntax)
+    would be miscounted - an accepted v1 trade-off, see FR-CLI-013."""
+    body, had_frontmatter = _strip_presenterm_frontmatter(content)
+    end_slide_markers = body.count("<!-- end_slide -->")
+    return end_slide_markers + 1 + (1 if had_frontmatter else 0)
+
+
+def run_presenterm(child: pexpect.spawn, step: dict, timing: dict, container_name: str):
+    content = Path(step["content_file"]).read_text()
+    path = step["path"]
+    slide_pause = step.get("slide_pause") or PRESENTERM_DEFAULT_SLIDE_PAUSE
+
+    _write_container_file_silent(container_name, path, content)
+    slide_count = _count_presenterm_slides(content)
+
+    open_cmd = f"presenterm {path}"
+    human_type(child, open_cmd, timing["base_cps"], timing["jitter_pct"])
+    child.send("\r")
+    time.sleep(PRESENTERM_SETTLE)  # let presenterm's alt-screen draw before driving it
+
+    # presenterm probes the terminal for image-support (Kitty graphics
+    # protocol) and device attributes on startup, then blocks on stdin
+    # waiting for a reply - a real terminal emulator answers these
+    # automatically, but this recorded pty is a raw pexpect pty with no
+    # emulator behind it, so nothing ever would. "\x1b[?c" is a minimal,
+    # valid Device Attributes response (real terminals send something like
+    # "\x1b[?1;2c"); presenterm only needs *a* well-formed reply to stop
+    # waiting, and since decks here are text-only, reporting "no graphics
+    # support" is harmless. Without this, presenterm hangs indefinitely and
+    # the step never proceeds.
+    child.send("\x1b[?c")
+    time.sleep(0.3)
+
+    for _ in range(slide_count - 1):
+        time.sleep(slide_pause)
+        child.send(" ")  # presenterm's default "next" binding
+
+    time.sleep(slide_pause)  # linger on the last slide too
+    child.send("q")  # presenterm's default "exit" binding
+    time.sleep(timing.get("settle", 0.3))
+
+
+def do_step(
+    child: pexpect.spawn, step: dict, timing: dict, cols: int, container_name: str
+):
     step_type = step["type"]
 
     if step_type == "command":
@@ -293,6 +401,9 @@ def do_step(child: pexpect.spawn, step: dict, timing: dict, cols: int, container
     elif step_type == "write_vim":
         run_write_vim(child, step, timing, container_name)
 
+    elif step_type == "presenterm":
+        run_presenterm(child, step, timing, container_name)
+
     else:
         raise ValueError(f"Unknown step type: {step_type}")
 
@@ -302,7 +413,9 @@ def do_step(child: pexpect.spawn, step: dict, timing: dict, cols: int, container
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("scenario", help="Path to scenario YAML file")
-    parser.add_argument("--out", default="session.cast", help="Output asciinema .cast path")
+    parser.add_argument(
+        "--out", default="session.cast", help="Output asciinema .cast path"
+    )
     parser.add_argument("--cols", type=int, default=120)
     parser.add_argument("--rows", type=int, default=30)
     args = parser.parse_args()
@@ -327,12 +440,13 @@ def main():
         rec_cmd = (
             f"asciinema rec --overwrite "
             f"--window-size {args.cols}x{args.rows} "
-            f"--command \"docker exec -e LC_ALL=C.UTF-8 -it {container_name} bash\" "
+            f'--command "docker exec -e LC_ALL=C.UTF-8 -it {container_name} bash" '
             f"{args.out}"
         )
         print(f"[*] Recording to {args.out}")
         child = pexpect.spawn(
-            "/bin/bash", ["-c", rec_cmd],
+            "/bin/bash",
+            ["-c", rec_cmd],
             dimensions=(args.rows, args.cols),
             encoding="utf-8",
             codec_errors="replace",

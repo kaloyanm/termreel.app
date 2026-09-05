@@ -8,4 +8,4 @@
 - id: rust
   display_name: Rust
   dockerfile: flavours/rust/Dockerfile
-  description: "rust:1.60.0-bullseye plus vim and git for write_vim steps and repo inspection."
+  description: "rust:1.60.0-bullseye plus vim/git for write_vim steps and repo inspection, and presenterm for presenterm steps."

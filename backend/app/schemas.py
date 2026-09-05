@@ -71,7 +71,7 @@ class TypingConfig(BaseModel):
 
 
 class ScenarioStep(BaseModel):
-    type: Literal["command", "comment", "write_file", "write_vim"]
+    type: Literal["command", "comment", "write_file", "write_vim", "presenterm"]
     text: Optional[str] = None
     path: Optional[str] = None
     content: Optional[str] = None
@@ -84,18 +84,24 @@ class ScenarioStep(BaseModel):
     # steps that don't set them rather than cluttering every step's YAML.
     simulate_typos: Optional[bool] = None
     force_blank: Optional[bool] = None
+    # presenterm only (see FR-EDIT-009): seconds to pause before each slide
+    # advance. Optional so it's omitted, like pause_after, from steps that
+    # don't set it; driver.py falls back to a fixed default when unset.
+    slide_pause: Optional[float] = None
 
     @model_validator(mode="after")
     def check_fields_for_type(self):
         if self.type in ("command", "comment") and not self.text:
             raise ValueError(f"step of type '{self.type}' requires 'text'")
-        if self.type in ("write_file", "write_vim"):
+        if self.type in ("write_file", "write_vim", "presenterm"):
             if not self.path:
                 raise ValueError(f"step of type '{self.type}' requires 'path'")
             if not self.content and not self.content_file:
                 raise ValueError(
                     f"step of type '{self.type}' requires 'content' or 'content_file'"
                 )
+        if self.slide_pause is not None and self.slide_pause <= 0:
+            raise ValueError("slide_pause must be positive")
         return self
 
 

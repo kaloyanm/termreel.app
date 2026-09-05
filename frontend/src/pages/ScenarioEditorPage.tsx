@@ -23,8 +23,26 @@ import { StepEditor } from "@/components/app/StepEditor";
 import { JobLogDialog } from "@/components/app/JobLogDialog";
 import type { DockerConfig, ScenarioStep, TypingConfig } from "@/types";
 
+function extractSaveErrorMessage(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  // FastAPI/Pydantic validation errors (e.g. a step missing a required
+  // field) arrive as a list of error objects, not a string - unwrap the
+  // first one so the toast names the actual step and problem instead of
+  // a generic fallback.
+  if (Array.isArray(detail) && detail.length > 0) {
+    const [first] = detail;
+    const msg = typeof first?.msg === "string" ? first.msg.replace(/^Value error,\s*/, "") : null;
+    const loc = Array.isArray(first?.loc) ? first.loc : [];
+    const stepIndexLoc = loc.indexOf("steps");
+    const stepIndex = stepIndexLoc >= 0 && typeof loc[stepIndexLoc + 1] === "number" ? loc[stepIndexLoc + 1] : null;
+    if (msg) return stepIndex !== null ? `Step ${stepIndex + 1}: ${msg}` : msg;
+  }
+  return "Failed to save — check step fields";
+}
+
 const emptyStep = (type: ScenarioStep["type"] = "command"): ScenarioStep => {
-  const isWrite = type === "write_file" || type === "write_vim";
+  const isWrite = type === "write_file" || type === "write_vim" || type === "presenterm";
   return {
     type,
     text: isWrite ? undefined : "",
@@ -32,6 +50,7 @@ const emptyStep = (type: ScenarioStep["type"] = "command"): ScenarioStep => {
     content: isWrite ? "" : undefined,
     pause_after: 1.5,
     ...(type === "write_vim" ? { simulate_typos: false, force_blank: false } : {}),
+    ...(type === "presenterm" ? { slide_pause: 2 } : {}),
   };
 };
 
@@ -72,9 +91,7 @@ export default function ScenarioEditorPage() {
       queryClient.invalidateQueries({ queryKey: ["scenarios", scenario?.playlist_id] });
     },
     onError: (err: unknown) => {
-      const message =
-        (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-      toast.error(typeof message === "string" ? message : "Failed to save — check step fields");
+      toast.error(extractSaveErrorMessage(err));
     },
   });
 
@@ -190,6 +207,9 @@ export default function ScenarioEditorPage() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => setSteps([...steps, emptyStep("write_vim")])}>
               <Plus /> Write file (vim)
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSteps([...steps, emptyStep("presenterm")])}>
+              <Plus /> Slideshow (presenterm)
             </Button>
           </div>
         </TabsContent>

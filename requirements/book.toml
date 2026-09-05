@@ -1,9 +1,0 @@
-[book]
-title = "termreel — Functional Requirements"
-authors = ["termreel"]
-language = "en"
-src = "src"
-
-[output.html]
-default-theme = "light"
-git-repository-url = "https://github.com"

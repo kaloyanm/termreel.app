@@ -60,6 +60,26 @@ steps:
   #   force_blank: false      # optional: always wipe+retype instead of
   #                            # diff-editing an existing file at `path`
 
+  # There is also a `presenterm` step type: it silently writes Markdown
+  # content into the container (never typed on screen, unlike write_file's
+  # heredoc - the point is to show the rendered slideshow, not the markdown
+  # source), then opens `presenterm` in the recorded terminal and drives
+  # slide advances automatically. Slide count is auto-detected from
+  # `<!-- end_slide -->` markers in the content, plus one extra slide if the
+  # content opens with a `---`...`---` YAML front matter block (which
+  # presenterm renders as an introduction slide) - see
+  # requirements/src/functional-requirements/cli-pipeline.md (FR-CLI-013)
+  # for the full behavior. Requires `presenterm` to be installed in the
+  # scenario's Docker image (already true for the `rust` flavour). Known
+  # limitation: `<!-- pause -->` incremental reveals are not supported in
+  # v1. Example (not used by this scenario):
+  #
+  # - type: presenterm
+  #   path: "talk.md"
+  #   content_file: "./demo-repo/talk.md"
+  #   slide_pause: 2.5   # optional: seconds before each slide advance
+  #                      # (default: driver.py's PRESENTERM_DEFAULT_SLIDE_PAUSE, 2.0s)
+
   - type: command
     text: "go run worker.go"
     pause_after: 3

@@ -196,6 +196,93 @@ def test_write_vim_typing_time_guardrail_allows_small_content(client):
     assert r.status_code == 422
 
 
+def test_presenterm_step_round_trip(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "slides demo",
+            "docker": {"flavour": "rust", "container_name": "x"},
+            "typing": {"base_cps": 14},
+            "steps": [
+                {
+                    "type": "presenterm",
+                    "path": "talk.md",
+                    "content": "# Slide 1\n<!-- end_slide -->\n# Slide 2\n<!-- end_slide -->\n# Slide 3\n",
+                    "slide_pause": 2.5,
+                }
+            ],
+        },
+    )
+    assert r.status_code == 201, r.text
+    scenario = r.json()
+    step = scenario["steps"][0]
+    assert step["type"] == "presenterm"
+    assert step["slide_pause"] == 2.5
+
+
+def test_presenterm_requires_path_or_content(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "bad presenterm step",
+            "docker": {"flavour": "rust", "container_name": "x"},
+            "steps": [{"type": "presenterm", "path": "talk.md"}],  # missing content
+        },
+    )
+    assert r.status_code == 422
+
+
+def test_presenterm_slide_pause_must_be_positive(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    for bad_pause in (0, -1):
+        r = client.post(
+            f"/api/playlists/{playlist['id']}/scenarios",
+            json={
+                "title": "bad slide_pause",
+                "docker": {"flavour": "rust", "container_name": "x"},
+                "steps": [
+                    {"type": "presenterm", "path": "talk.md", "content": "# Slide 1\n", "slide_pause": bad_pause}
+                ],
+            },
+        )
+        assert r.status_code == 422
+
+
+def test_presenterm_step_not_subject_to_write_vim_typing_guardrail(client):
+    r = client.post("/api/projects", json={"name": "P"})
+    project = r.json()
+    r = client.post(f"/api/projects/{project['id']}/playlists", json={"name": "PL"})
+    playlist = r.json()
+
+    # This much content at 1 cps would trip the write_vim typing-time
+    # guardrail if it were mistakenly applied to presenterm steps too -
+    # presenterm content is written silently, never human-typed on screen.
+    r = client.post(
+        f"/api/playlists/{playlist['id']}/scenarios",
+        json={
+            "title": "long slides",
+            "docker": {"flavour": "rust", "container_name": "x"},
+            "typing": {"base_cps": 1},
+            "steps": [{"type": "presenterm", "path": "talk.md", "content": "x" * 5000}],
+        },
+    )
+    assert r.status_code == 201, r.text
+
+
 def test_list_flavours(client):
     r = client.get("/api/flavours")
     assert r.status_code == 200

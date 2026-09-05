@@ -19,6 +19,7 @@ const typeLabels: Record<StepType, string> = {
   comment: "Comment",
   write_file: "Write file",
   write_vim: "Write file (vim)",
+  presenterm: "Slideshow (presenterm)",
 };
 
 export function StepEditor({
@@ -91,7 +92,7 @@ export function StepEditor({
         </div>
       )}
 
-      {(step.type === "write_file" || step.type === "write_vim") && (
+      {(step.type === "write_file" || step.type === "write_vim" || step.type === "presenterm") && (
         <div className="grid grid-cols-1 gap-3">
           <div className="space-y-1.5">
             <Label>Destination path (inside container)</Label>
@@ -162,6 +163,26 @@ export function StepEditor({
               <p className="text-xs text-muted-foreground pl-6">
                 By default, write_vim auto-detects an existing file at this path in the
                 container and edits it in place instead of overwriting it from scratch.
+              </p>
+            </div>
+          )}
+
+          {step.type === "presenterm" && (
+            <div className="space-y-1.5 w-40">
+              <Label>Slide pause (s)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0.1"
+                value={step.slide_pause ?? ""}
+                onChange={(e) =>
+                  onChange({ ...step, slide_pause: e.target.value === "" ? undefined : Number(e.target.value) })
+                }
+                placeholder="2.0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Pause before each slide advance. Slide count is auto-detected from{" "}
+                <code>&lt;!-- end_slide --&gt;</code> markers in the content.
               </p>
             </div>
           )}

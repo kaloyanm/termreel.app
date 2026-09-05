@@ -24,6 +24,17 @@ echo "[*] Starting FastAPI (http://127.0.0.1:8000)"
 echo "[*] Starting RQ worker"
 (cd backend && uv run python -m app.worker) &
 
+# Vite's dev server (and its proxy to /api) comes up almost instantly, but
+# uvicorn's full FastAPI/SQLModel import + --reload watcher setup takes
+# noticeably longer - starting the frontend in parallel with no ordering
+# raced the frontend's first page load against a backend that wasn't
+# listening yet, surfacing as "ECONNREFUSED 127.0.0.1:8000" proxy errors.
+echo "[*] Waiting for FastAPI to be ready..."
+for _ in $(seq 1 150); do
+  curl -s -o /dev/null http://127.0.0.1:8000/api/health && break
+  sleep 0.2
+done
+
 echo "[*] Starting frontend (http://127.0.0.1:5173)"
 (cd frontend && bun run dev) &
 
